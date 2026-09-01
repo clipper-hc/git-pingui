@@ -1,0 +1,590 @@
+<!doctype html>
+<html lang="ca">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Copa Pingüí de Badalona</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* ── Tokens ─────────────────────────────────────────────────────────────── */
+:root{
+  --ground:#EDF1F1; --surface:#FFFFFF; --surface-2:#F5F8F8;
+  --ink:#0A1920; --muted:#596D75; --line:#D2DCDC; --line-soft:#E3EAEA;
+  --accent:#C9551A; --accent-ink:#FFFFFF; --accent-soft:#F7E8DF;
+  --good:#1F7A5A; --warn:#9A6B12; --bad:#A33A2A;
+  --shadow:0 1px 2px rgba(10,25,32,.06), 0 8px 24px -12px rgba(10,25,32,.18);
+  --display:"Oswald","Haettenschweiler","Arial Narrow",sans-serif;
+  --body:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono","SFMono-Regular",Menlo,Consolas,monospace;
+  --r:10px;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#071219; --surface:#0E1F29; --surface-2:#132831;
+    --ink:#E2ECEE; --muted:#8CA2AA; --line:#1B3140; --line-soft:#152935;
+    --accent:#FF8B3D; --accent-ink:#231004; --accent-soft:#2A1810;
+    --good:#4BC49B; --warn:#E0B25A; --bad:#F08B78;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.7);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#071219; --surface:#0E1F29; --surface-2:#132831;
+  --ink:#E2ECEE; --muted:#8CA2AA; --line:#1B3140; --line-soft:#152935;
+  --accent:#FF8B3D; --accent-ink:#231004; --accent-soft:#2A1810;
+  --good:#4BC49B; --warn:#E0B25A; --bad:#F08B78;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.7);
+}
+
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--body);
+  font-size:15px;line-height:1.55;-webkit-text-size-adjust:100%}
+h1,h2,h3{font-family:var(--display);font-weight:500;text-wrap:balance;margin:0;
+  letter-spacing:.01em;line-height:1.1}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+.wrap{max-width:940px;margin:0 auto;padding:0 16px 72px}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--muted)}
+
+/* ── Masthead ───────────────────────────────────────────────────────────── */
+header.mast{background:var(--surface);border-bottom:1px solid var(--line)}
+.mast-in{max-width:940px;margin:0 auto;padding:22px 16px 0;
+  display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:14px}
+.mast h1{font-size:clamp(30px,6.4vw,50px);font-weight:600;text-transform:uppercase;
+  letter-spacing:-.005em}
+.mast h1 .thin{font-weight:400;color:var(--muted)}
+.mast-meta{text-align:right;padding-bottom:5px}
+.mast-meta .season{font-family:var(--mono);font-size:12.5px;color:var(--muted)}
+.mast-meta .phase{font-family:var(--display);font-size:16px;text-transform:uppercase}
+
+/* The sea band: the season's recorded water temperatures, left to right. */
+.sea{height:8px;margin-top:16px;display:flex;overflow:hidden}
+.sea i{flex:1 1 0;min-width:1px}
+.sea.empty{background:var(--line-soft)}
+.sea-key{max-width:940px;margin:0 auto;padding:5px 16px 12px;display:flex;
+  justify-content:space-between;gap:12px;font-family:var(--mono);font-size:10.5px;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.sea-key span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sea-key span:last-child{flex:none}
+
+/* Qui ets, a dalt a la dreta. */
+.sessio{flex-basis:100%;display:flex;align-items:center;gap:10px;justify-content:flex-end;
+  font-family:var(--mono);font-size:12px;color:var(--muted);min-height:20px}
+.sessio b{font-family:var(--display);font-size:14px;font-weight:500;color:var(--ink);
+  text-transform:uppercase;letter-spacing:.03em}
+.linkbtn{background:none;border:0;padding:0;color:var(--muted);cursor:pointer;
+  font-family:var(--mono);font-size:12px;text-decoration:underline;text-underline-offset:3px}
+.linkbtn:hover{color:var(--accent)}
+
+/* Botons d'identificació */
+.oauth{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;
+  background:var(--surface);color:var(--ink);border:1px solid var(--line);
+  border-radius:8px;padding:12px 16px;font-size:15px;font-weight:500;cursor:pointer}
+.oauth:hover{background:var(--surface-2)}
+.oauth svg{flex:none}
+.sep{display:flex;align-items:center;gap:12px;color:var(--muted);
+  font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase}
+.sep::before,.sep::after{content:"";flex:1;height:1px;background:var(--line)}
+
+/* ── Tabs ───────────────────────────────────────────────────────────────── */
+nav.tabs{position:sticky;top:0;z-index:20;background:var(--ground);
+  border-bottom:1px solid var(--line);margin-bottom:22px}
+.tabs-in{max-width:940px;margin:0 auto;padding:0 16px;display:flex;gap:2px;
+  overflow-x:auto;scrollbar-width:none}
+.tabs-in::-webkit-scrollbar{display:none}
+.tab{background:none;border:0;border-bottom:2px solid transparent;padding:13px 12px 11px;
+  font-family:var(--display);font-size:14.5px;text-transform:uppercase;letter-spacing:.05em;
+  color:var(--muted);cursor:pointer;white-space:nowrap}
+.tab:hover{color:var(--ink)}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+.tab .badge{display:inline-block;margin-left:6px;background:var(--accent);
+  color:var(--accent-ink);font-family:var(--mono);font-size:10.5px;line-height:1;
+  padding:3px 5px;border-radius:9px;vertical-align:1px}
+
+/* ── Blocks ─────────────────────────────────────────────────────────────── */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  box-shadow:var(--shadow)}
+.card + .card{margin-top:16px}
+.card-h{padding:15px 18px;border-bottom:1px solid var(--line-soft);
+  display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.card-h h2{font-size:19px;text-transform:uppercase;letter-spacing:.03em}
+.card-b{padding:18px}
+.note{color:var(--muted);font-size:13.5px;margin:0}
+.stack{display:flex;flex-direction:column;gap:16px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+
+/* ── Leaderboard ────────────────────────────────────────────────────────── */
+ol.board{list-style:none;margin:0;padding:0}
+.board > li{border-bottom:1px solid var(--line-soft)}
+.board > li:last-child{border-bottom:0}
+.entry{width:100%;background:none;border:0;text-align:left;cursor:pointer;
+  display:grid;grid-template-columns:38px 1fr auto;gap:4px 12px;align-items:center;
+  padding:13px 18px}
+.entry:hover{background:var(--surface-2)}
+.pos{font-family:var(--display);font-size:21px;color:var(--muted);text-align:center}
+.entry.lead .pos{color:var(--accent)}
+.who{min-width:0}
+.who .nom{font-family:var(--display);font-size:19px;text-transform:uppercase;
+  letter-spacing:.02em;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.who .sub{font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+.pts{font-family:var(--mono);font-size:23px;font-weight:500;text-align:right;
+  font-variant-numeric:tabular-nums;line-height:1.1}
+.pts small{display:block;font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);font-weight:400}
+.entry.lead .pts{color:var(--accent)}
+.entry.jo{background:var(--surface-2);box-shadow:inset 3px 0 0 var(--accent)}
+.who .tu{font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--accent);
+  vertical-align:2px;text-transform:uppercase}
+.chev{grid-column:3;justify-self:end}
+
+/* Month strip: one swatch per counting day, coloured by water temperature. */
+.strip{grid-column:2/4;display:flex;gap:3px;flex-wrap:wrap;margin-top:3px}
+.sw{width:15px;height:15px;border-radius:3px;flex:none}
+.sw.out{opacity:.28}
+
+.detail{padding:2px 18px 20px;background:var(--surface-2);
+  border-top:1px solid var(--line-soft)}
+.mes{padding:14px 0;border-bottom:1px dashed var(--line);}
+.mes:last-child{border-bottom:0}
+.mes-h{display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+  margin-bottom:9px}
+.mes-h .nom{font-family:var(--display);font-size:15px;text-transform:uppercase;
+  letter-spacing:.05em}
+.mes-h .tot{font-family:var(--mono);font-size:14px;font-weight:500}
+.dies{display:flex;flex-direction:column;gap:5px}
+.dia{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;
+  font-family:var(--mono);font-size:12.5px;padding:5px 8px;border-radius:6px;
+  background:var(--surface)}
+.dia.out{color:var(--muted)}
+.dia.out .d-pts{text-decoration:line-through}
+.temp-chip{display:inline-flex;align-items:center;justify-content:center;
+  min-width:44px;padding:2px 6px;border-radius:4px;font-weight:500;font-size:11.5px;
+  color:#fff;letter-spacing:.02em}
+.d-info{display:flex;gap:8px;align-items:center;flex-wrap:wrap;min-width:0}
+.d-pts{font-weight:600;text-align:right;white-space:nowrap}
+.flag{font-family:var(--body);font-size:10.5px;font-weight:600;letter-spacing:.06em;
+  text-transform:uppercase;padding:2px 6px;border-radius:4px;
+  background:var(--accent-soft);color:var(--accent)}
+.why{margin-top:9px;font-size:12.5px;color:var(--muted)}
+.why b{font-weight:600;color:var(--ink)}
+
+/* ── Forms ──────────────────────────────────────────────────────────────── */
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-family:var(--mono);font-size:11px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--muted)}
+input[type=text],input[type=date],input[type=number],input[type=email],select,textarea{
+  background:var(--surface);border:1px solid var(--line);border-radius:8px;
+  padding:10px 11px;width:100%;font-size:15px}
+textarea{resize:vertical;min-height:64px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}
+.check{display:flex;gap:10px;align-items:flex-start;padding:11px 12px;
+  border:1px solid var(--line);border-radius:8px;cursor:pointer;background:var(--surface)}
+.check input{margin:3px 0 0;flex:none;width:17px;height:17px;accent-color:var(--accent)}
+.check .t{font-size:14px;font-weight:500}
+.check .s{font-size:12.5px;color:var(--muted);display:block}
+.check:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+
+.btn{background:var(--accent);color:var(--accent-ink);border:0;border-radius:8px;
+  padding:11px 18px;font-family:var(--display);font-size:15px;text-transform:uppercase;
+  letter-spacing:.05em;cursor:pointer}
+.btn:hover{filter:brightness(1.08)}
+.btn:disabled{opacity:.45;cursor:not-allowed;filter:none}
+.btn.ghost{background:none;color:var(--ink);border:1px solid var(--line)}
+.btn.ghost:hover{background:var(--surface-2);filter:none}
+.btn.sm{padding:6px 11px;font-size:12.5px;border-radius:6px}
+.btn.ok{background:var(--good);color:#fff}
+.btn.no{background:none;color:var(--bad);border:1px solid var(--line)}
+
+.msg{padding:11px 13px;border-radius:8px;font-size:14px;border:1px solid}
+.msg.ok{background:var(--surface);border-color:var(--good);color:var(--good)}
+.msg.err{background:var(--surface);border-color:var(--bad);color:var(--bad)}
+.msg.info{background:var(--surface-2);border-color:var(--line);color:var(--muted)}
+
+/* ── Coordination ───────────────────────────────────────────────────────── */
+.pend{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;
+  padding:13px 0;border-bottom:1px solid var(--line-soft)}
+.pend:last-child{border-bottom:0}
+.pend .nm{font-family:var(--display);font-size:16px;text-transform:uppercase}
+.pend .meta{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.pend .acts{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.pend input[type=number]{width:74px;padding:6px 8px;font-size:13px}
+.tempbox{display:flex;gap:6px;align-items:center}
+.tempbox label{font-family:var(--mono);font-size:11px;color:var(--muted)}
+
+table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
+.tbl th{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);text-align:left;font-weight:400;padding:0 10px 8px 0;
+  border-bottom:1px solid var(--line)}
+.tbl td{padding:8px 10px 8px 0;border-bottom:1px solid var(--line-soft)}
+.tbl td.n{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.scroll-x{overflow-x:auto}
+.pill{display:inline-block;font-size:11px;font-weight:600;letter-spacing:.05em;
+  text-transform:uppercase;padding:2px 8px;border-radius:99px}
+.pill.ok{background:color-mix(in srgb,var(--good) 15%,transparent);color:var(--good)}
+.pill.warn{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
+
+/* ── Rules ──────────────────────────────────────────────────────────────── */
+.prose{max-width:64ch;font-size:14.5px}
+.prose h3{font-size:15px;text-transform:uppercase;letter-spacing:.06em;
+  margin:22px 0 8px;color:var(--muted)}
+.prose h3:first-child{margin-top:0}
+.prose ul{margin:0;padding-left:19px}
+.prose li{margin-bottom:7px}
+.prose code{font-family:var(--mono);font-size:12.5px;background:var(--surface-2);
+  padding:1px 5px;border-radius:4px}
+.ramp{display:flex;flex-wrap:wrap;gap:5px;margin:12px 0 4px}
+.ramp .r{display:flex;flex-direction:column;align-items:center;gap:3px;
+  font-family:var(--mono);font-size:11px}
+.ramp .r i{width:44px;height:26px;border-radius:5px;display:flex;align-items:center;
+  justify-content:center;color:#fff;font-style:normal;font-size:11px;font-weight:600}
+
+.demo-bar{background:var(--accent-soft);border-bottom:1px solid var(--line);
+  font-family:var(--mono);font-size:12px;color:var(--accent);padding:8px 16px;text-align:center}
+footer{max-width:940px;margin:34px auto 0;padding:18px 16px;border-top:1px solid var(--line);
+  font-family:var(--mono);font-size:11.5px;color:var(--muted);display:flex;
+  justify-content:space-between;gap:12px;flex-wrap:wrap}
+.hidden{display:none!important}
+@media (max-width:560px){
+  .mast-in{align-items:flex-start;flex-direction:column;gap:6px;padding-top:18px}
+  .mast-meta{text-align:left;padding-bottom:0;display:flex;align-items:baseline;gap:10px}
+  .mast-meta .phase{font-size:14px;white-space:nowrap}
+  .mast-meta .season{font-size:11.5px}
+  .sea-key span:first-child{display:none}
+  .sea-key{justify-content:flex-end}
+  .tab{padding:12px 9px 10px;font-size:13.5px}
+}
+@media (max-width:520px){
+  .entry{grid-template-columns:30px 1fr auto;padding:12px 14px;gap:3px 9px}
+  .pts{font-size:20px} .who .nom{font-size:17px}
+  .card-b{padding:15px} .detail{padding:2px 14px 18px}
+  .pend{grid-template-columns:1fr;gap:9px}
+  .pend .acts{justify-content:flex-start}
+}
+</style>
+</head>
+<body>
+
+<div id="demoBar" class="demo-bar hidden"></div>
+
+<header class="mast">
+  <div class="mast-in">
+    <h1>Copa <span class="thin">Pingüí</span></h1>
+    <div class="mast-meta">
+      <div class="phase" id="phase">Temporada</div>
+      <div class="season num" id="seasonRange">—</div>
+    </div>
+    <div class="sessio" id="sessio"></div>
+  </div>
+  <div class="sea empty" id="seaBand"></div>
+  <div class="sea-key">
+    <span>Temperatura de l'aigua, dia a dia</span>
+    <span id="seaKeyRight">—</span>
+  </div>
+</header>
+
+<nav class="tabs">
+  <div class="tabs-in" role="tablist">
+    <button class="tab" role="tab" data-view="board" aria-selected="true">Classificació</button>
+    <button class="tab" role="tab" data-view="log" aria-selected="false">Registrar</button>
+    <button class="tab" role="tab" data-view="coord" aria-selected="false">Coordinació<span class="badge hidden" id="pendBadge">0</span></button>
+    <button class="tab" role="tab" data-view="rules" aria-selected="false">Reglament</button>
+  </div>
+</nav>
+
+<main class="wrap">
+
+  <!-- ══ CLASSIFICACIÓ ══════════════════════════════════════════════════ -->
+  <section id="view-board" class="stack">
+    <div class="card">
+      <div class="card-h">
+        <h2>Classificació</h2>
+        <span class="eyebrow" id="boardMeta">—</span>
+      </div>
+      <ol class="board" id="board"></ol>
+    </div>
+    <p class="note">Toca un nedador per veure mes a mes quins dies li compten i quins
+      li han quedat fora pel límit de quatre.</p>
+  </section>
+
+  <!-- ══ REGISTRAR ══════════════════════════════════════════════════════ -->
+  <section id="view-log" class="stack hidden">
+
+    <!-- Sense identificar -->
+    <div class="card hidden" id="authCard">
+      <div class="card-h"><h2>Entra per registrar</h2></div>
+      <div class="card-b stack" style="max-width:400px">
+        <p class="note" style="margin:0">La classificació la pot mirar tothom. Per
+          apuntar els teus banys cal que entris, perquè quedi clar de qui són.</p>
+        <button class="oauth" id="googleBtn">
+          <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+            <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/>
+            <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/>
+            <path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33z"/>
+            <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.9 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/>
+          </svg>
+          Entrar amb Google
+        </button>
+        <div class="sep">o bé</div>
+        <div class="field">
+          <label for="fMail2">El teu correu</label>
+          <input type="email" id="fMail2" placeholder="tu@exemple.com" autocomplete="email">
+        </div>
+        <button class="btn ghost" id="magicBtn">Enviar-me un enllaç</button>
+        <div id="authMsg"></div>
+      </div>
+    </div>
+
+    <!-- Identificat però encara sense fitxa de nedador -->
+    <div class="card hidden" id="onboardCard">
+      <div class="card-h"><h2>Com et diem?</h2></div>
+      <div class="card-b stack" style="max-width:400px">
+        <p class="note" style="margin:0">Aquest és el nom que sortirà a la
+          classificació. El pots canviar quan vulguis.</p>
+        <div class="field">
+          <label for="fNom">El teu nom</label>
+          <input type="text" id="fNom" maxlength="40" placeholder="Nom i cognom">
+        </div>
+        <div class="row"><button class="btn" id="onboardBtn">Apuntar-me a la copa</button></div>
+        <div id="onboardMsg"></div>
+      </div>
+    </div>
+
+    <!-- Registrar un bany -->
+    <div class="card hidden" id="logCard">
+      <div class="card-h">
+        <h2>Registrar un bany</h2>
+        <span class="eyebrow">Dins de les 24 h</span>
+      </div>
+      <div class="card-b">
+        <form id="logForm" class="stack">
+          <div class="grid2">
+            <div class="field">
+              <label for="fData">Dia del bany</label>
+              <input type="date" id="fData" required>
+            </div>
+            <div class="field">
+              <label for="fMetres">Distància (metres)</label>
+              <input type="number" id="fMetres" min="100" max="20000" step="50"
+                     placeholder="1500" required>
+            </div>
+          </div>
+          <div class="field">
+            <label for="fNota">Nota (opcional)</label>
+            <input type="text" id="fNota" maxlength="120" placeholder="Fins al pont i tornar">
+          </div>
+          <div class="grid2">
+            <label class="check">
+              <input type="checkbox" id="fNeopre">
+              <span><span class="t">Amb neoprè</span>
+                <span class="s">No suma punts, però queda registrat</span></span>
+            </label>
+            <label class="check">
+              <input type="checkbox" id="fCompeti">
+              <span><span class="t">Prova competitiva</span>
+                <span class="s">Les no competitives sí que sumen</span></span>
+            </label>
+          </div>
+          <div id="previsio" class="msg info hidden"></div>
+          <div class="row">
+            <button class="btn" type="submit" id="logBtn">Apuntar el bany</button>
+            <span class="note">Compta de seguida. La temperatura la posa l'AEMET.</span>
+          </div>
+          <div id="logMsg"></div>
+        </form>
+      </div>
+    </div>
+
+    <div class="card hidden" id="mineCard">
+      <div class="card-h">
+        <h2>Els teus banys</h2>
+        <span class="eyebrow" id="mineMeta">—</span>
+      </div>
+      <div class="card-b"><div id="mySubs"></div></div>
+    </div>
+  </section>
+
+  <!-- ══ COORDINACIÓ ════════════════════════════════════════════════════ -->
+  <section id="view-coord" class="stack hidden">
+    <div id="coordLocked" class="card hidden">
+      <div class="card-h"><h2>Coordinació</h2></div>
+      <div class="card-b">
+        <p class="note" id="coordLockedMsg">Aquesta secció és per a Hugo i Jordi.</p>
+      </div>
+    </div>
+
+    <div id="coordPanel" class="stack">
+      <div class="card">
+        <div class="card-h">
+          <h2>Dies sense temperatura</h2>
+          <span class="eyebrow" id="pendMeta">—</span>
+        </div>
+        <div class="card-b"><div id="pendList"></div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-h">
+          <h2>Temperatura i dies dobles</h2>
+          <a class="eyebrow" id="aemetLink" target="_blank" rel="noopener"
+             href="https://www.aemet.es/es/eltiempo/prediccion/playas/del-centre-0801502">Consultar AEMET ↗</a>
+        </div>
+        <div class="card-b stack">
+          <div class="grid2">
+            <div class="field">
+              <label for="tDia">Dia</label>
+              <input type="date" id="tDia">
+            </div>
+            <div class="field">
+              <label for="tTemp">Temperatura de l'aigua (ºC)</label>
+              <input type="number" id="tTemp" step="0.1" min="0" max="30" placeholder="13">
+            </div>
+          </div>
+          <label class="check" style="max-width:340px">
+            <input type="checkbox" id="tDoble">
+            <span><span class="t">Dia de puntuació doble</span>
+              <span class="s">El dia sorpresa. Nadal i Cap d'Any ja doblen sols.</span></span>
+          </label>
+          <div class="row"><button class="btn" id="tSave">Desar el dia</button></div>
+          <div class="scroll-x"><table class="tbl" id="daysTbl"></table></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h">
+          <h2>Esmorzars</h2>
+          <span class="eyebrow">Mínim 2 per optar al premi</span>
+        </div>
+        <div class="card-b stack">
+          <div class="row">
+            <input type="date" id="bDia" style="max-width:190px">
+            <button class="btn ghost sm" id="bAdd">Afegir esmorzar</button>
+          </div>
+          <div id="bList"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h">
+          <h2>Corregir banys</h2>
+          <span class="eyebrow">Els últims 40</span>
+        </div>
+        <div class="card-b">
+          <p class="note" style="margin:0 0 10px">Ningú no valida els banys: compten
+            sols. Si n'hi ha un d'equivocat, aquí el podeu anul·lar o tornar a activar.</p>
+          <div class="scroll-x"><div id="corrList"></div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><h2>Inscrits i temporada</h2></div>
+        <div class="card-b stack">
+          <div class="row"><span class="note" id="nCount"></span></div>
+          <div id="nList" class="row"></div>
+          <div class="grid2">
+            <div class="field">
+              <label for="cPontMin">"Un pont" des de (m)</label>
+              <input type="number" id="cPontMin" step="50">
+            </div>
+            <div class="field">
+              <label for="cPontMax">"Un pont" fins a (m)</label>
+              <input type="number" id="cPontMax" step="50">
+            </div>
+          </div>
+          <p class="note">El reglament diu "1500 m aprox". Aquesta és la banda que
+            val coeficient 1. Per sota, 0,5. Per sobre, 1,5.</p>
+          <div class="row"><button class="btn ghost sm" id="cSave">Desar la banda</button></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ REGLAMENT ══════════════════════════════════════════════════════ -->
+  <section id="view-rules" class="stack hidden">
+    <div class="card">
+      <div class="card-h"><h2>Reglament</h2><span class="eyebrow">Coordinen Hugo López i Jordi Piera</span></div>
+      <div class="card-b prose">
+        <p style="margin-top:0"><em>No és realment un torneig ni una competició. Només un joc
+          entre amics per fer més divertit el que ja fem.</em></p>
+
+        <h3>Per participar</h3>
+        <ul>
+          <li>Ser nedador habitual en aigües obertes i haver nedat almenys 5 vegades
+            en aigua per sota de 16 ºC, com a mínim 1000 m.</li>
+          <li>Estar sa i ser major d'edat.</li>
+          <li>Inscripció de 10 € abans de l'1 de novembre. Màxim 20 participants.</li>
+          <li>La participació implica assumir la pròpia responsabilitat i prendre
+            mesures de seguretat. Els coordinadors no són organitzadors.</li>
+        </ul>
+
+        <h3>Punts per temperatura</h3>
+        <p class="note" style="margin:0 0 4px">Un punt per cada grau per sota de 20 ºC.
+          Per sota de 10 ºC, quinze punts directes.</p>
+        <div class="ramp" id="ramp"></div>
+
+        <h3>Coeficient de distància</h3>
+        <ul>
+          <li><code>×0,5</code> — per sota d'un pont</li>
+          <li><code>×1</code> — un pont, uns 1500 m</li>
+          <li><code>×1,5</code> — més d'un pont, cap a un punt de llum</li>
+        </ul>
+
+        <h3>Límits i dobles</h3>
+        <ul>
+          <li>Només puntuen 4 dies per mes. Si en neden més, compten els 4 millors.</li>
+          <li>Un dia a l'atzar, comunicat amb menys de 24 h, puntua doble.</li>
+          <li>El 31 de desembre i l'1 de gener també puntuen doble.</li>
+        </ul>
+
+        <h3>Què no suma</h3>
+        <ul>
+          <li>Banys amb neoprè.</li>
+          <li>Proves competitives. Les no competitives sí que sumen: la mini de
+            Sant Esteve, les benèfiques.</li>
+        </ul>
+
+        <h3>Esmorzars i premi</h3>
+        <ul>
+          <li>Cal acudir almenys a 2 esmorzars post-sortida durant la copa.</li>
+          <li>Samarreta commemorativa al guanyador o guanyadora, i esmorzar per a
+            tothom el primer diumenge d'abril.</li>
+        </ul>
+
+        <h3>Confiança</h3>
+        <ul>
+          <li>Les distàncies les informa cada participant dins de les 24 h següents,
+            per honestedat, transparència i confiança mútua.</li>
+          <li>Les temperatures les fixen els coordinadors segons l'AEMET.</li>
+          <li>Qualsevol situació no prevista la resolen els coordinadors, que poden
+            triar un tercer jutge per desempatar.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <span>Copa Pingüí de Badalona</span>
+  <span id="footMode">—</span>
+</footer>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════════════
+   CONFIGURACIÓ
+   Per posar l'app en marxa de debò, omple aquests dos valors amb les dades
+   del teu projecte de Supabase (Project Settings → API). Mentre estiguin
+   buits, l'app funciona en mode demostració amb dades d'exemple.
+   ══════════════════════════════════════════════════════════════════════════ */
+const SUPABASE_URL = "";
+const SUPABASE_ANON_KEY = "";
+
+const TEMPORADA = { inici: "2026-11-01", fi: "2027-03-31" };
+const AEMET_PLATJA = "https://www.aemet.es/es/eltiempo/prediccion/playas/del-centre-0801502";
+</script>
+
+<script src="scoring.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
