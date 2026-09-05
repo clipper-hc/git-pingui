@@ -1,0 +1,23 @@
+name: Temperatura de l'aigua
+
+# Cada dia a les 07:00 hora de Badalona (06:00 UTC a l'hivern), i també
+# a mà des de la pestanya Actions quan calgui.
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  aemet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Llegir l'AEMET i desar a Supabase
+        env:
+          AEMET_API_KEY: ${{ secrets.AEMET_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: node aemet.mjs
