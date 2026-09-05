@@ -182,10 +182,19 @@ coordinadors només veuen el recompte.
 ### El formulari
 
 La distància ve informada amb **1500**, que és la mesura d'un pont i el que
-neda gairebé tothom. El vestit és un desplegable que ve **amb neoprè** de
-sèrie: per puntuar a l'absoluta cal triar activament "sense neoprè", de manera
-que reclamar punts és sempre un acte explícit. Si ho voleu a l'inrevés, es
+neda gairebé tothom, i el vestit ve **sense neoprè**, que és el cas normal en
+aquesta copa. Així el formulari ja arriba ple amb el bany més habitual i
+només cal tocar-lo quan el bany s'hi aparta. Si ho voleu a l'inrevés, es
 canvia l'atribut `selected` d'una de les dues `<option>` a `index.html`.
+
+La mena de bany és un desplegable de tres opcions, no una casella, perquè el
+reglament té dues meitats i una casella només en deia una:
+
+| Opció | Puntua a l'absoluta |
+|---|---|
+| Pel meu compte | sí |
+| Travessia popular o benèfica (mini de Sant Esteve) | sí |
+| Cursa competitiva | no |
 
 Tres punts que el reglament deixa oberts i que aquí s'han hagut de decidir:
 
