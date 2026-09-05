@@ -38,8 +38,12 @@ async function temperaturesAemet() {
   const dies = (dades[0] && dades[0].prediccion && dades[0].prediccion.dia) || [];
 
   return dies.map((d) => {
-    const data = String(d.fecha).slice(0, 10);       // "2026-11-03T00:00:00" → "2026-11-03"
-    const brut = d.tAgua && (d.tAgua.valor ?? d.tAgua);
+    const f = String(d.fecha);
+    const data = /^\d{8}$/.test(f)
+      ? `${f.slice(0, 4)}-${f.slice(4, 6)}-${f.slice(6, 8)}`
+      : f.slice(0, 10);
+    const camp = d.tAgua || d.tagua;
+    const brut = camp && (camp.valor1 ?? camp.valor ?? camp.value);
     const temp = brut === undefined || brut === null || brut === ""
       ? null : Number(String(brut).replace(",", "."));
     return { data, temp };
