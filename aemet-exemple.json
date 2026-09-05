@@ -1,0 +1,22 @@
+[ {
+  "elaborado" : "2026-09-05T08:51:12",
+  "nombre" : "Del Centre",
+  "localidad" : 8015,
+  "prediccion" : {
+    "dia" : [
+      { "tMaxima": { "value": "", "valor1": 32 },
+        "tAgua" : { "value" : "", "valor1" : 29 },
+        "fecha" : 20260905,
+        "tagua" : { "value" : "", "valor1" : 29 } },
+      { "tMaxima": { "value": "", "valor1": 32 },
+        "tAgua" : { "value" : "", "valor1" : 28 },
+        "fecha" : 20260906,
+        "tagua" : { "value" : "", "valor1" : 28 } },
+      { "tMaxima": { "value": "", "valor1": 32 },
+        "tAgua" : { "value" : "", "valor1" : 29 },
+        "fecha" : 20260907,
+        "tagua" : { "value" : "", "valor1" : 29 } }
+    ]
+  },
+  "id" : 801502
+} ]

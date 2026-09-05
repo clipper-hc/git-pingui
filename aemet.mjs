@@ -16,9 +16,13 @@
 const PLATJA = "0801502";           // Platja del Centre, Badalona
 const { AEMET_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_KEY } = process.env;
 
-if (!AEMET_API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
-  console.error("Falten variables d'entorn: AEMET_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_KEY");
-  process.exit(1);
+/* La comprovació va dins del main i no aquí dalt, perquè el fitxer també
+   s'importa des de scripts/test-aemet.mjs, que prova el parser sense claus. */
+function comprovarEntorn() {
+  if (!AEMET_API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+    console.error("Falten variables d'entorn: AEMET_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_KEY");
+    process.exit(1);
+  }
 }
 
 const json = async (url, opts) => {
@@ -26,6 +30,31 @@ const json = async (url, opts) => {
   if (!r.ok) throw new Error(`${r.status} ${r.statusText} — ${url.split("?")[0]}`);
   return r.json();
 };
+
+/* Tradueix la resposta de l'AEMET a [{ data:"YYYY-MM-DD", temp }].
+
+   Dues coses d'aquest format que no són òbvies i que val la pena deixar
+   escrites, perquè totes dues fallaven en silenci:
+     · `fecha` és un NÚMERO de vuit xifres, 20260905, no una data ISO.
+     · la temperatura és `tAgua.valor1`, no `tAgua.valor`. L'AEMET a més
+       emet el camp dues vegades, com a `tAgua` i com a `tagua`.
+   Exportada a part de la crida perquè es pugui provar sense xarxa, contra
+   `aemet-exemple.json`, que és una resposta real. */
+export function llegirDies(dades) {
+  const dies = (dades[0] && dades[0].prediccion && dades[0].prediccion.dia) || [];
+
+  return dies.map((d) => {
+    const f = String(d.fecha);
+    const data = /^\d{8}$/.test(f)
+      ? `${f.slice(0, 4)}-${f.slice(4, 6)}-${f.slice(6, 8)}`   // 20260905
+      : f.slice(0, 10);                                        // 2026-09-05T00:00:00
+    const camp = d.tAgua || d.tagua;
+    const brut = camp && (camp.valor1 ?? camp.valor ?? camp.value);
+    const temp = brut === undefined || brut === null || brut === ""
+      ? null : Number(String(brut).replace(",", "."));
+    return { data, temp };
+  }).filter((x) => /^\d{4}-\d{2}-\d{2}$/.test(x.data) && x.temp !== null && !Number.isNaN(x.temp));
+}
 
 /* L'AEMET respon en dos passos: primer una fitxa amb l'URL real de les dades. */
 async function temperaturesAemet() {
@@ -35,15 +64,17 @@ async function temperaturesAemet() {
   );
   if (!fitxa.datos) throw new Error(`l'AEMET no ha donat dades: ${fitxa.descripcion || fitxa.estado}`);
   const dades = await json(fitxa.datos);
-  const dies = (dades[0] && dades[0].prediccion && dades[0].prediccion.dia) || [];
+  const lectures = llegirDies(dades);
 
-  return dies.map((d) => {
-    const data = String(d.fecha).slice(0, 10);       // "2026-11-03T00:00:00" → "2026-11-03"
-    const brut = d.tAgua && (d.tAgua.valor ?? d.tAgua);
-    const temp = brut === undefined || brut === null || brut === ""
-      ? null : Number(String(brut).replace(",", "."));
-    return { data, temp };
-  }).filter((x) => /^\d{4}-\d{2}-\d{2}$/.test(x.data) && x.temp !== null && !Number.isNaN(x.temp));
+  // Si arriben dies però cap amb temperatura, el format ha canviat. Val més
+  // dir-ho fort que no pas acabar amb un "no hi ha dades" que no ho és.
+  const nDies = (dades[0] && dades[0].prediccion && dades[0].prediccion.dia || []).length;
+  if (nDies && !lectures.length) {
+    console.error(`L'AEMET ha donat ${nDies} dies però no n'he pogut llegir cap temperatura.`);
+    console.error("Sembla un canvi de format. Primer dia rebut, per mirar-lo:");
+    console.error(JSON.stringify(dades[0].prediccion.dia[0], null, 2));
+  }
+  return lectures;
 }
 
 const rest = (cami, opts = {}) => json(`${SUPABASE_URL}/rest/v1/${cami}`, {
@@ -57,6 +88,7 @@ const rest = (cami, opts = {}) => json(`${SUPABASE_URL}/rest/v1/${cami}`, {
 });
 
 const main = async () => {
+  comprovarEntorn();
   const lectures = await temperaturesAemet();
   if (!lectures.length) { console.log("L'AEMET no dona temperatura de l'aigua ara mateix."); return; }
 
@@ -83,4 +115,6 @@ const main = async () => {
   if (aMa.size) console.log(`Respectats ${aMa.size} dies fixats a mà.`);
 };
 
-main().catch((e) => { console.error("Error:", e.message); process.exit(1); });
+if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop())) {
+  main().catch((e) => { console.error("Error:", e.message); process.exit(1); });
+}
