@@ -415,27 +415,28 @@ footer{max-width:940px;margin:34px auto 0;padding:18px 16px;border-top:1px solid
             <div class="field">
               <label for="fNeopre">Vestit</label>
               <select id="fNeopre">
-                <option value="si" selected>Amb neoprè</option>
-                <option value="no">Sense neoprè</option>
+                <option value="no" selected>Sense neoprè</option>
+                <option value="si">Amb neoprè</option>
               </select>
             </div>
             <div class="field">
-              <label for="fNota">Nota (opcional)</label>
-              <input type="text" id="fNota" maxlength="120" placeholder="Fins al pont i tornar">
+              <label for="fCompeti">Quina mena de bany</label>
+              <select id="fCompeti">
+                <option value="lliure" selected>Pel meu compte</option>
+                <option value="popular">Travessia popular o benèfica</option>
+                <option value="cursa">Cursa competitiva</option>
+              </select>
             </div>
           </div>
-          <div class="grid2">
-            <label class="check">
-              <input type="checkbox" id="fEsmorzar">
-              <span><span class="t">He anat a esmorzar</span>
-                <span class="s">Calen 2 esmorzars per optar al premi</span></span>
-            </label>
-            <label class="check">
-              <input type="checkbox" id="fCompeti">
-              <span><span class="t">Prova competitiva</span>
-                <span class="s">Les no competitives sí que sumen</span></span>
-            </label>
+          <div class="field">
+            <label for="fNota">Nota (opcional)</label>
+            <input type="text" id="fNota" maxlength="120" placeholder="Fins al pont i tornar">
           </div>
+          <label class="check" style="max-width:420px">
+            <input type="checkbox" id="fEsmorzar">
+            <span><span class="t">He anat a esmorzar</span>
+              <span class="s">Calen 2 esmorzars per optar al premi</span></span>
+          </label>
           <div id="previsio" class="msg info hidden"></div>
           <div class="row">
             <button class="btn" type="submit" id="logBtn">Apuntar el bany</button>
@@ -605,8 +606,9 @@ footer{max-width:940px;margin:34px auto 0;padding:18px 16px;border-top:1px solid
         <h3>Què no suma</h3>
         <ul>
           <li>Banys amb neoprè.</li>
-          <li>Proves competitives. Les no competitives sí que sumen: la mini de
-            Sant Esteve, les benèfiques.</li>
+          <li>Curses. Si el bany va ser dins d'una prova competitiva, no puntua.
+            Les travessies populars i benèfiques, com la mini de Sant Esteve,
+            sí que sumen.</li>
         </ul>
 
         <h3>Esmorzars i premi</h3>
