@@ -372,11 +372,12 @@ function pintarPrevisio() {
   if (!data || !metres) { box.classList.add("hidden"); return; }
   box.classList.remove("hidden");
 
-  if ($("#fNeopre").value === "si" || $("#fCompeti").checked) {
+  if ($("#fNeopre").value === "si" || $("#fCompeti").value === "cursa") {
     box.className = "msg info";
     box.textContent = $("#fNeopre").value === "si"
       ? "Amb neoprè no suma punts a l'absoluta, però compta als dies i als metres."
-      : "Les proves competitives no sumen punts a l'absoluta, però compten als dies i als metres.";
+      : "Les curses no sumen punts a l'absoluta, però compten als dies i als metres. "
+        + "Les travessies populars sí que sumen.";
     return;
   }
   const d = S.dies[data];
@@ -411,7 +412,7 @@ function pintarElsMeus() {
       const d = S.dies[b.data] || {};
       const dia = totsElsDies.find((x) => x.data === b.data);
       const motiu = b.estat === "anullat" ? "anul·lat" : b.neopre ? "neoprè"
-        : b.competitiu ? "competitiva"
+        : b.competitiu ? "cursa"
         : (d.tempC === null || d.tempC === undefined) ? "sense temperatura" : null;
       return `<tr>
         <td class="n">${fmtDia(b.data)}</td>
@@ -490,7 +491,7 @@ function pintarCoordinacio() {
         <td class="n">${fmtDia(b.data)}</td>
         <td>${esc(n ? n.nom : "?")}</td>
         <td class="n">${b.metres.toLocaleString("ca-ES")}${b.neopre ? " · neoprè" : ""}${
-          b.competitiu ? " · comp." : ""}</td>
+          b.competitiu ? " · cursa" : ""}</td>
         <td>${anul ? '<span class="pill warn">Anul·lat</span>' : '<span class="pill ok">Compta</span>'}</td>
         <td><button class="linkbtn" data-toggle="${esc(b.id)}">${
           anul ? "reactivar" : "anul·lar"}</button></td>
@@ -650,7 +651,7 @@ function connectar() {
       data: $("#fData").value,
       metres: parseInt($("#fMetres").value, 10),
       neopre: $("#fNeopre").value === "si",
-      competitiu: $("#fCompeti").checked,
+      competitiu: $("#fCompeti").value === "cursa",
       esmorzar: $("#fEsmorzar").checked,
       nota: $("#fNota").value.trim(),
       estat: "aprovat",
@@ -665,7 +666,7 @@ function connectar() {
     try {
       await api.apuntarBany(bany);
       $("#fMetres").value = "1500"; $("#fNota").value = "";
-      $("#fNeopre").value = "si"; $("#fCompeti").checked = false;
+      $("#fNeopre").value = "no"; $("#fCompeti").value = "lliure";
       $("#fEsmorzar").checked = false;
       $("#previsio").classList.add("hidden");
       missatge("#logMsg", "Apuntat.");
