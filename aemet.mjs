@@ -17,7 +17,7 @@ const PLATJA = "0801502";           // Platja del Centre, Badalona
 const { AEMET_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_KEY } = process.env;
 
 /* La comprovació va dins del main i no aquí dalt, perquè el fitxer també
-   s'importa des de scripts/test-aemet.mjs, que prova el parser sense claus. */
+   s'importa des de test-aemet.mjs, que prova el parser sense claus. */
 function comprovarEntorn() {
   if (!AEMET_API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
     console.error("Falten variables d'entorn: AEMET_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_KEY");
@@ -25,10 +25,22 @@ function comprovarEntorn() {
   }
 }
 
+/* Dues coses que costen una tarda si no es fan aquí:
+     · Una escriptura correcta a PostgREST amb `return=minimal` respon 204
+       sense cos. Fer-ne r.json() peta, i el treball ja estava fet.
+     · Quan Supabase rebutja alguna cosa, el motiu va DINS del cos. Sense
+       llegir-lo només es veu "400 Bad Request", que no diu res. */
 const json = async (url, opts) => {
   const r = await fetch(url, opts);
-  if (!r.ok) throw new Error(`${r.status} ${r.statusText} — ${url.split("?")[0]}`);
-  return r.json();
+  const cos = await r.text();
+  if (!r.ok) {
+    let motiu = cos.slice(0, 400);
+    try { const j = JSON.parse(cos); motiu = j.message || j.error || j.hint || motiu; } catch (e) { /* text pla */ }
+    throw new Error(`${r.status} ${r.statusText} — ${url.split("?")[0]}\n         ${motiu}`);
+  }
+  if (!cos.trim()) return null;          // 204 No Content: correcte i buit
+  try { return JSON.parse(cos); }
+  catch (e) { throw new Error(`resposta que no és JSON de ${url.split("?")[0]}: ${cos.slice(0, 200)}`); }
 };
 
 /* Tradueix la resposta de l'AEMET a [{ data:"YYYY-MM-DD", temp }].
@@ -90,13 +102,16 @@ const rest = (cami, opts = {}) => json(`${SUPABASE_URL}/rest/v1/${cami}`, {
 const main = async () => {
   comprovarEntorn();
   const lectures = await temperaturesAemet();
-  if (!lectures.length) { console.log("L'AEMET no dona temperatura de l'aigua ara mateix."); return; }
+  console.log(`L'AEMET dona ${lectures.length} dies amb temperatura de l'aigua:`);
+  lectures.forEach((l) => console.log(`  ${l.data}  ${l.temp} ºC`));
+  if (!lectures.length) return;
+  console.log(`Escrivint a ${SUPABASE_URL}/rest/v1/dies ...`);
 
   // No trepitgem el que els coordinadors han fixat a mà.
   const dates = lectures.map((l) => l.data);
   const existents = await rest(
     `dies?data=in.(${dates.join(",")})&select=data,font,temp_c`);
-  const aMa = new Set(existents.filter((d) => d.font === "manual").map((d) => d.data));
+  const aMa = new Set((existents || []).filter((d) => d.font === "manual").map((d) => d.data));
 
   const files = lectures
     .filter((l) => !aMa.has(l.data))
