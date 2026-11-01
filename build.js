@@ -5,14 +5,17 @@ const path = require("path");
 
 const read = (f) => fs.readFileSync(path.join(__dirname, f), "utf8");
 let html = read("index.html");
-const scoring = read("scoring.js");
-const app = read("app.js");
 
-// 1. Inline dels dos scripts.
-html = html.replace('<script src="scoring.js"></script>', `<script>\n${scoring}\n</script>`);
-html = html.replace('<script src="app.js"></script>', `<script>\n${app}\n</script>`);
+// Compte: String.replace interpreta $$ al text de substitució com un $
+// literal. Amb una funció com a segon argument no passa, i el codi arriba
+// a l'artifact byte a byte com és. Això va corrompre totes les versions
+// publicades fins al 28 d'octubre de 2026.
+const inlinar = (etiqueta, fitxer) => {
+  html = html.replace(etiqueta, () => `<script>\n${read(fitxer)}\n</script>`);
+};
+inlinar('<script src="scoring.js"></script>', "scoring.js");
+inlinar('<script src="app.js"></script>', "app.js");
 
-// 2. Treu l'esquelet del document i els meta que l'Artifact ja posa.
 let out = html
   .replace(/^[\s\S]*?<head>\s*/i, "")
   .replace(/<\/head>\s*<body>\s*/i, "\n")
@@ -23,8 +26,11 @@ let out = html
 fs.mkdirSync(path.join(__dirname, "dist"), { recursive: true });
 fs.writeFileSync(path.join(__dirname, "dist/artifact.html"), out);
 
-// Comprovacions bàsiques abans de publicar.
 const problemes = [];
+// Comprova que el codi ha arribat intacte, no només que hi ha arribat.
+for (const f of ["scoring.js", "app.js"]) {
+  if (!out.includes(read(f).trim())) problemes.push(`${f} s'ha alterat en inlinar-lo`);
+}
 if (/<!doctype|<html|<\/html>|<head>|<body>/i.test(out)) problemes.push("queda esquelet HTML");
 if (/<script src=/.test(out)) problemes.push("queda un script extern sense inlinar");
 if (!out.includes("<title>")) problemes.push("falta el títol");

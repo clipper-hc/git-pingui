@@ -213,6 +213,23 @@ textarea{resize:vertical;min-height:64px}
 .check .s{font-size:12.5px;color:var(--muted);display:block}
 .check:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
 
+/* Bonificacions: fitxes que es marquen, amb els punts a la vista. */
+.mods{display:flex;flex-wrap:wrap;gap:8px}
+.mod{display:inline-flex;align-items:center;gap:8px;cursor:pointer;
+  border:1px solid var(--line);border-radius:999px;padding:7px 13px 7px 11px;
+  background:var(--surface);font-size:14px;user-select:none}
+.mod:hover{background:var(--surface-2)}
+.mod input{margin:0;width:15px;height:15px;accent-color:var(--accent);flex:none}
+.mod b{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--good)}
+.mod:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.mod:has(input:checked) b{color:var(--accent)}
+
+/* La porta dels esmorzars, al detall mensual. */
+.mes.bloquejat .mes-h .tot{color:var(--warn)}
+.porta{font-family:var(--mono);font-size:11.5px;color:var(--warn);
+  background:var(--surface);border:1px dashed var(--warn);border-radius:6px;
+  padding:6px 9px;margin-bottom:8px}
+
 .btn{background:var(--accent);color:var(--accent-ink);border:0;border-radius:8px;
   padding:11px 18px;font-family:var(--display);font-size:15px;text-transform:uppercase;
   letter-spacing:.05em;cursor:pointer}
@@ -294,6 +311,7 @@ footer{max-width:940px;margin:34px auto 0;padding:18px 16px;border-top:1px solid
 </style>
 </head>
 <body>
+
 
 <div id="demoBar" class="demo-bar hidden"></div>
 
@@ -408,7 +426,7 @@ footer{max-width:940px;margin:34px auto 0;padding:18px 16px;border-top:1px solid
             <div class="field">
               <label for="fMetres">Distància (metres)</label>
               <input type="number" id="fMetres" min="100" max="20000" step="50"
-                     value="1500" required>
+                     value="1700" required>
             </div>
           </div>
           <div class="grid2">
@@ -419,6 +437,15 @@ footer{max-width:940px;margin:34px auto 0;padding:18px 16px;border-top:1px solid
                 <option value="si">Amb neoprè</option>
               </select>
             </div>
+            <div class="field">
+              <label for="fFora">On</label>
+              <select id="fFora">
+                <option value="badalona" selected>Badalona</option>
+                <option value="fora">Fora de Badalona</option>
+              </select>
+            </div>
+          </div>
+          <div class="grid2">
             <div class="field">
               <label for="fCompeti">Quina mena de bany</label>
               <select id="fCompeti">
@@ -432,11 +459,17 @@ footer{max-width:940px;margin:34px auto 0;padding:18px 16px;border-top:1px solid
             <label for="fNota">Nota (opcional)</label>
             <input type="text" id="fNota" maxlength="120" placeholder="Fins al pont i tornar">
           </div>
-          <label class="check" style="max-width:420px">
+          <label class="check" style="max-width:460px">
             <input type="checkbox" id="fEsmorzar">
             <span><span class="t">He anat a esmorzar</span>
-              <span class="s">Calen 2 esmorzars per optar al premi</span></span>
+              <span class="s">Calen dos esmorzars al mes per optar al premi:
+                els punts d'un mes no compten fins que no s'hi arriba.</span></span>
           </label>
+
+          <div class="field" id="modsBox" style="display:none">
+            <label>Hi ha hagut res especial?</label>
+            <div class="mods" id="mods"></div>
+          </div>
           <div id="previsio" class="msg info hidden"></div>
           <div class="row">
             <button class="btn" type="submit" id="logBtn">Apuntar el bany</button>
@@ -547,7 +580,24 @@ footer{max-width:940px;margin:34px auto 0;padding:18px 16px;border-top:1px solid
               <label for="cPontMax">"Un pont" fins a (m)</label>
               <input type="number" id="cPontMax" step="50">
             </div>
+            <div class="field">
+              <label for="cTempBase">Es deixa de puntuar a (ºC)</label>
+              <input type="number" id="cTempBase" step="1" min="10" max="30">
+            </div>
+            <div class="field">
+              <label for="cEsmorzarsMes">Esmorzars per mes</label>
+              <input type="number" id="cEsmorzarsMes" step="1" min="0" max="10">
+            </div>
+            <div class="field">
+              <label for="cMaxFora">Banys fora de Badalona, per mes</label>
+              <input type="number" id="cMaxFora" step="1" min="0" max="10">
+            </div>
+            <div class="field">
+              <label for="cInscripcio">Inscripció (€)</label>
+              <input type="number" id="cInscripcio" step="5" min="0" max="200">
+            </div>
           </div>
+          <p class="note" id="notaLlindar"></p>
           <p class="note">El reglament diu "1500 m aprox". Aquesta és la banda que
             val coeficient 1. Per sota, 0,5. Per sobre, 1,5.</p>
           <label class="check" style="max-width:420px">
@@ -579,14 +629,15 @@ footer{max-width:940px;margin:34px auto 0;padding:18px 16px;border-top:1px solid
           <li>Ser nedador habitual en aigües obertes i haver nedat almenys 5 vegades
             en aigua per sota de 16 ºC, com a mínim 1000 m.</li>
           <li>Estar sa i ser major d'edat.</li>
-          <li>Inscripció de 10 € abans de l'1 de novembre. Màxim 20 participants.</li>
+          <li>Inscripció de <b>20 €</b> abans de l'1 de novembre, que es destinen
+            a una samarreta commemorativa. Màxim 20 participants.</li>
           <li>La participació implica assumir la pròpia responsabilitat i prendre
             mesures de seguretat. Els coordinadors no són organitzadors.</li>
         </ul>
 
         <h3>Punts per temperatura</h3>
-        <p class="note" style="margin:0 0 4px">Un punt per cada grau per sota de 20 ºC.
-          Per sota de 10 ºC, quinze punts directes.</p>
+        <p class="note" style="margin:0 0 4px" id="reglaTemp">Un punt per cada grau
+          per sota del llindar. Per sota de 10 ºC, quinze punts directes.</p>
         <div class="ramp" id="ramp"></div>
 
         <h3>Coeficient de distància</h3>
@@ -594,6 +645,23 @@ footer{max-width:940px;margin:34px auto 0;padding:18px 16px;border-top:1px solid
           <li><code>×0,5</code> — per sota d'un pont</li>
           <li><code>×1</code> — un pont, uns 1500 m</li>
           <li><code>×1,5</code> — més d'un pont, cap a un punt de llum</li>
+        </ul>
+
+        <h3>Bonificacions</h3>
+        <p class="note" style="margin:0 0 8px">Coses que passen mar endins i que
+          sumen punts. Es marquen en registrar el bany.</p>
+        <ul id="llistaMods"></ul>
+        <p class="note" style="margin:8px 0 0">Són punts plans: no es multipliquen
+          per la distància ni es dupliquen els dies dobles. Només compten als banys
+          que puntuen a l'absoluta. Els coordinadors en poden afegir de noves durant
+          la temporada, i apareixen soles al formulari.</p>
+
+        <h3>On es neda</h3>
+        <ul>
+          <li>Es pot nedar fora de Badalona, però <b>només compta un bany de fora
+            cada mes</b>. Si en fas més d'un, puntua el millor.</li>
+          <li>La temperatura que s'aplica a un bany de fora és sempre <b>la de
+            Badalona</b> d'aquell dia. No es mira la de l'altra platja.</li>
         </ul>
 
         <h3>Límits i dobles</h3>
@@ -613,9 +681,12 @@ footer{max-width:940px;margin:34px auto 0;padding:18px 16px;border-top:1px solid
 
         <h3>Esmorzars i premi</h3>
         <ul>
-          <li>Cal acudir almenys a 2 esmorzars post-sortida durant la copa.</li>
-          <li>Samarreta commemorativa al guanyador o guanyadora, i esmorzar per a
-            tothom el primer diumenge d'abril.</li>
+          <li>Calen <b>2 esmorzars cada mes</b>. Els punts d'un mes <b>no compten
+            al global</b> fins que no s'hi ha anat dues vegades aquell mes. No és
+            cap desqualificació: el dia que s'hi arriba, els punts del mes entren
+            tots de cop.</li>
+          <li>Els 20 € de la inscripció es destinen a una samarreta commemorativa,
+            i esmorzar per a tothom el primer diumenge d'abril.</li>
         </ul>
 
         <h3>Confiança</h3>
@@ -635,7 +706,6 @@ footer{max-width:940px;margin:34px auto 0;padding:18px 16px;border-top:1px solid
   <span>Copa Pingüí de Badalona</span>
   <span id="footMode">—</span>
 </footer>
-
 <script>
 /* ══════════════════════════════════════════════════════════════════════════
    CONFIGURACIÓ
@@ -643,10 +713,10 @@ footer{max-width:940px;margin:34px auto 0;padding:18px 16px;border-top:1px solid
    del teu projecte de Supabase (Project Settings → API). Mentre estiguin
    buits, l'app funciona en mode demostració amb dades d'exemple.
    ══════════════════════════════════════════════════════════════════════════ */
-const SUPABASE_URL = "https://coklobfcyutgaluigdva.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_xXf08528VXO6SBYY7YheEg_pf5lmXEb";
+const SUPABASE_URL = "";
+const SUPABASE_ANON_KEY = "";
 
-const TEMPORADA = { inici: "2026-09-01", fi: "2027-03-31" };
+const TEMPORADA = { inici: "2026-11-01", fi: "2027-03-31" };
 const AEMET_PLATJA = "https://www.aemet.es/es/eltiempo/prediccion/playas/del-centre-0801502";
 </script>
 

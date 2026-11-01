@@ -12,27 +12,147 @@ navegador obre directament.
 index.html      l'estructura i l'estil
 app.js          la interfície, la identificació i la connexió amb la base de dades
 scoring.js      el motor de puntuació (el reglament, en codi)
-test-scoring.js 63 proves del motor      ·  node test-scoring.js
+test-scoring.js 69 proves del motor      ·  node test-scoring.js
 verify.js       proves de la interfície en un navegador de veritat
-schema.sql      les taules i els permisos de Supabase
-scripts/        la lectura diària de l'AEMET
+build.js        genera dist/artifact.html, el fitxer únic que es publica
+schema.sql      les taules i els permisos, per a una instal·lació nova
+migracio.sql    els canvis sobre una base de dades ja en marxa
+aemet.mjs       la lectura diària de l'AEMET
 ```
 
 Obrint `index.html` tal com està, l'app arrenca en **mode demostració** amb
-nedadors inventats i tu identificat com a coordinador, per veure totes les
-pantalles. No cal res més.
+nedadors inventats i tu identificat com a coordinador. No cal res més.
 
 ---
 
-## Posar-la en marxa de debò
+## Canvis de l'1 de novembre de 2026
 
-Mitja hora llarga, una sola vegada. La part de Google és el tros més llarg.
+Executa **`migracio.sql`** a Supabase → SQL Editor. No esborra cap dada, i
+inclou també els canvis del 28 d'octubre per si no els havies passat.
+
+### Els esmorzars passen a ser una porta de punts
+
+Abans deixaven fora del premi. Ara, més senzill: **els punts d'un mes no
+entren al global fins que no s'hi ha anat a esmorzar dues vegades aquell
+mes.** No és una desqualificació. Els punts hi són, es veuen marcats com "en
+espera", i entren tots de cop el dia que s'arriba als dos esmorzars.
+
+L'avantatge és que es regula sol i no cal decidir res al final de la
+temporada. L'efecte a vigilar: algú que faci un gener brutal i no vagi a
+esmorzar perd el mes sencer, i això es nota molt més que una regla
+d'elegibilitat. Es relaxa amb `esmorzars_mes` a `config`.
+
+### Bonificacions
+
+Taula nova `modificadors`. Cada fila és una cosa que pot passar mar endins i
+el que val:
+
+| | |
+|---|---|
+| He vist un tauró | 10 punts |
+| He vist un dofí | 10 punts |
+| M'ha picat una medusa | 1 punt |
+
+**Per afegir-ne una de nova no cal tocar codi:** una fila a `modificadors`
+des del Table Editor de Supabase i apareix sola al formulari de tothom i al
+reglament de l'app. `actiu` a false l'amaga sense esborrar l'històric, i
+`ordre` decideix en quin ordre surten.
+
+Tres decisions preses en implementar-ho, totes reversibles:
+
+- **Són punts plans.** No es multipliquen pel coeficient de distància ni es
+  dupliquen els dies dobles. Veure un dofí val 10 nedant 800 m i nedant-ne
+  3000, que és el que vol dir "sumi 10 punts".
+- **Només compten als banys que puntuen a l'absoluta.** Amb neoprè o en una
+  cursa no se'n cullen, perquè si no serien una via per puntuar saltant-se
+  les altres regles.
+- **Entren al dia, no al marge.** Un dia amb bonificació pot desbancar un
+  altre dins del límit de quatre dies per mes, que és el que té sentit: va
+  ser un dia més bo.
+
+### Un pont són uns 1700 m
+
+La banda del coeficient 1 passa de 1400–1600 a **1600–1800**, i el valor per
+defecte del formulari de 1500 a 1700. Compte amb això: **1500 m ara val
+×0,5**, no ×1. Si algú ja havia registrat banys de 1500 m comptant que eren
+un pont, aquells banys baixen de puntuació.
+
+---
+
+## Canvis del 28 d'octubre de 2026
+
+### El llindar de temperatura
+
+El reglament deia "un punt per cada grau per sota de 20 ºC". Amb l'aigua a
+21 ºC a finals d'octubre, el novembre no hauria puntuat gairebé mai. El
+llindar passa a ser **23 ºC** i es canvia des de Coordinació sense tocar codi.
+
+| Aigua | Abans (20 ºC) | Ara (23 ºC) |
+|---|---|---|
+| 21 ºC | 0 | 2 |
+| 19 ºC | 1 | 4 |
+| 15 ºC | 5 | 8 |
+| 13 ºC | 7 | 10 |
+| 10 ºC | 10 | 13 |
+| < 10 ºC | 15 | 15 |
+
+Un efecte secundari a tenir present: amb el llindar a 23, els 15 punts del
+fred extrem queden a només dos punts dels 13 que val nedar a 10 ºC. El salt
+que premiava els dies de debò durs s'ha aplanat. Si ho voleu recuperar,
+`punts_extrem` a la taula `config` ho puja sense tocar res més.
+
+### Fora de Badalona
+
+Camp nou `fora` a la taula `banys`. Es pot nedar fora, però **només compta un
+bany de fora cada mes**: si n'hi ha més, puntua el millor i la resta queden
+marcats al detall. Un bany de fora descartat per aquesta regla **no** ocupa
+cap de les quatre places del mes.
+
+La temperatura que s'aplica a un bany de fora és sempre **la de Badalona**
+d'aquell dia. No hi ha cap camp de temperatura al bany: tot surt de la taula
+`dies`, o sigui que això ja funcionava sol.
+
+### Esmorzars
+
+Passen a ser **dos cada mes**, els cinc mesos de la temporada. Un mes tancat
+sense arribar-hi deixa fora del premi. El mes en curs es veu però no penalitza
+ningú: encara s'hi és a temps.
+
+A Coordinació hi ha una taula amb una columna per mes: verd si el mes està
+cobert, taronja si és el mes en curs i encara en falten, vermell si el mes ja
+ha tancat sense arribar-hi.
+
+### Inscripció
+
+20 €, destinats a una samarreta commemorativa. És text del reglament i un
+valor a `config`; l'app no gestiona diners.
+
+---
+
+## Un error que arrossegaven totes les versions publicades
+
+`build.js` inlinava `app.js` dins de l'HTML amb `String.replace`, i
+JavaScript interpreta `$$` al text de substitució com un `$` literal. Cada
+`$$` del codi (la funció que selecciona diversos elements) arribava a
+l'artifact convertida en `$`, cosa que trencava les pestanyes de la versió
+publicada. El fitxer servit per GitHub Pages no hi passa, o sigui que només
+afectava la demostració.
+
+Ara `build.js` fa servir una funció de substitució i, a més, comprova que el
+codi inlinat sigui idèntic al d'origen abans de donar el build per bo.
+`verify.js` prova `dist/artifact.html`, no `index.html`, precisament per
+aquest motiu.
+
+---
+
+## Posar-la en marxa de zero
 
 ### 1. La base de dades
 
 1. Crea un projecte gratuït a [supabase.com](https://supabase.com).
 2. **SQL Editor → New query**, enganxa-hi tot `schema.sql` i executa'l.
-3. **Project Settings → API**, copia `Project URL` i la clau `anon public`.
+3. **Settings → API Keys**, copia el `Project URL` i la clau **pública**
+   (`anon` o `sb_publishable_…`).
 
 ### 2. Connectar l'app
 
@@ -41,188 +161,94 @@ A dalt de tot de `index.html`, dins del primer `<script>`:
 ```js
 const SUPABASE_URL = "https://xxxxxxxx.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOi...";
-const TEMPORADA = { inici: "2026-11-01", fi: "2027-03-31" };
 ```
 
-La clau `anon` és pública per disseny: va al navegador de tothom. Qui la
-tingui només pot fer el que diuen les polítiques de `schema.sql`. La clau
-`service_role` no apareix mai aquí.
+Les dates de la temporada ja no es toquen aquí: viuen a `config` i es canvien
+des de Coordinació.
 
 ### 3. Publicar-la
 
-**Settings → Pages → Deploy from a branch → `main` / `root`.** Al cap d'un
-minut queda a `https://<usuari>.github.io/<repositori>/`. Aquest és l'enllaç
-que passes al grup de WhatsApp.
+**Settings → Pages → Deploy from a branch → `main` / `root`.**
 
-### 4. L'enllaç per correu
+### 4. Identificació
 
-Ja funciona de sèrie. L'únic que cal és que a Supabase, a **Authentication →
-URL Configuration**, hi posis l'adreça de GitHub Pages com a *Site URL*, i
-també a *Redirect URLs*. Sense això l'enllaç del correu porta a un lloc que
-no existeix.
+A Supabase, **Authentication → URL Configuration**, posa-hi l'adreça de
+GitHub Pages com a *Site URL* i també a *Redirect URLs*.
 
-**El correu de sèrie de Supabase envia unes dues cartes per hora.** Si passeu
-l'enllaç al grup i tots proven l'opció del correu alhora, la majoria rebrà un
-error `429`. Digueu-los que entrin amb Google, que no gasta correus, o
-connecteu un SMTP propi (Resend, Brevo) a **Authentication → Emails**.
+El correu de sèrie de Supabase envia unes dues cartes per hora: digues-los
+que entrin amb Google, o connecta un SMTP propi.
 
-### 5. Google
+Per a Google, mira la guia de desplegament. En resum: **Google Auth Platform
+→ Clients**, client de tipus *Web application*, i a *Authorized redirect
+URIs* la URL que et dona Supabase (`.../auth/v1/callback`).
 
-Google ha reorganitzat la consola: ara tot penja de **Google Auth Platform**,
-no de l'antiga "OAuth consent screen".
+### 5. Els coordinadors
 
-1. A [Google Cloud Console](https://console.cloud.google.com/), crea un
-   projecte i busca **Google Auth Platform → Get started**.
-2. Tipus d'audiència **External**. No es pot canviar després sense començar
-   un projecte de zero.
-3. A **Data Access**, afegeix `openid`, `userinfo.email` i `userinfo.profile`.
-4. A **Clients**, crea un client **Web application**. A *Authorized redirect
-   URIs* enganxa la que et dona Supabase a **Authentication → Providers →
-   Google**: `https://xxxxxxxx.supabase.co/auth/v1/callback`.
-5. Copia el *Client ID* i el *Client secret* i enganxa'ls a Supabase. Activa'l.
-
-Mentre l'audiència estigui en *Testing*, només hi poden entrar els correus que
-hagis afegit com a test users. Amb aquests permisos bàsics, publicar-la és
-immediat i no passa per cap revisió: per a vint amics és molt més còmode.
-
-### 6. Els coordinadors
-
-Entreu-hi tots dos un cop, poseu-vos el nom, i després executeu a l'SQL
-Editor les últimes línies de `schema.sql` amb els vostres correus. És l'únic
-pas manual, i és a posta: si es pogués fer des de l'app, es podria fer
-coordinador qualsevol.
-
-### 7. Els nedadors
-
-No has de fer res. Cadascú entra amb l'enllaç, escriu el seu nom i ja hi és.
-Quan s'arriba a 20 l'app avisa, però no bloqueja: el reglament diu "per ordre
-d'inscripció i amb dret d'admissió", i el dret d'admissió el teniu vosaltres,
-no el programa.
+Entreu-hi tots dos, poseu-vos el nom, i després executeu les últimes línies
+de `schema.sql` amb els vostres correus.
 
 ---
 
 ## La temperatura de l'aigua
 
-**Amb aquest model és imprescindible, no un extra.** Com que ningú no aprova
-els banys, si un dia no té temperatura els banys d'aquell dia queden apuntats
-però no puntuen fins que algú la posi.
+L'AEMET publica la temperatura de la Platja del Centre. El *workflow* de
+`.github/workflows/aemet.yml` la llegeix cada matí i l'escriu a `dies`.
 
-L'AEMET publica la temperatura de l'aigua de la Platja del Centre. El
-*workflow* de `.github/workflows/aemet.yml` la llegeix cada matí i l'escriu a
-la taula `dies`.
+Cal `AEMET_API_KEY`, `SUPABASE_URL` i `SUPABASE_SERVICE_KEY` als secrets del
+repositori. Aquesta última és la clau **secreta** (`service_role` o
+`sb_secret_…`), de **Settings → API Keys**, i no és la mateixa que poses a
+`index.html`.
 
-1. Demana una clau gratuïta a
-   [opendata.aemet.es](https://opendata.aemet.es/centrodedescargas/altaUsuario).
-2. Al repositori, **Settings → Secrets and variables → Actions**, afegeix
-   `AEMET_API_KEY`, `SUPABASE_URL` i `SUPABASE_SERVICE_KEY` (aquesta última és
-   la clau `service_role` de Supabase, i no surt mai del repositori).
-
-Si algun dia falla, la pestanya *Coordinació* us el mostra a la safata **Dies
-sense temperatura**, amb els banys que hi ha esperant, i el podeu fixar a mà.
-Els dies fixats a mà queden marcats com a `manual` i l'script no els torna a
-tocar mai.
+Si algun dia falla, la pestanya *Coordinació* mostra els **dies sense
+temperatura** amb els banys que hi esperen, i es poden fixar a mà.
 
 ---
 
 ## Qui pot fer què
 
-Imposat per les polítiques de `schema.sql`, no per la interfície, de manera
-que aguanta encara que algú obri la consola del navegador.
-
-| | Mirar la classificació | Apuntar banys | Esborrar els seus | Temperatures, dobles, configuració |
+| | Mirar | Apuntar banys | Esborrar els seus | Configuració |
 |---|---|---|---|---|
 | Qualsevol amb l'enllaç | sí | no | no | no |
 | Identificat | sí | els seus | sí | no |
 | Coordinador | sí | els seus | qualsevol | sí |
 
-Ningú no pot apuntar banys en nom d'un altre: la política comprova que el
-`nedador_id` sigui el de la teva pròpia fitxa. Ningú no es pot fer coordinador
-a si mateix. Els coordinadors no aproven res, però poden **anul·lar** un bany
-equivocat des de *Corregir banys*, que és el que el reglament ja els donava:
-resoldre el que no estava previst.
+Imposat per les polítiques de `schema.sql`, no per la interfície.
 
 ---
 
 ## El reglament, en codi
 
-Tot `scoring.js`, amb 63 proves a `test-scoring.js`:
+Tot `scoring.js`, amb 69 proves a `test-scoring.js`:
 
 | Regla | On és |
 |---|---|
-| 1 punt per grau sota 20 ºC; 15 punts sota 10 ºC | `puntsTemperatura` |
+| 1 punt per grau sota el llindar; 15 punts sota 10 ºC | `puntsTemperatura` |
 | ×0,5 · ×1 · ×1,5 segons la distància | `coeficientDistancia` |
 | Només els 4 millors dies de cada mes | `calcularClassificacio` |
+| Només un bany de fora de Badalona per mes | `calcularClassificacio` |
 | Doble el 31 de desembre i l'1 de gener | `esDiaDoble` |
-| Doble el dia sorpresa | `dies[data].doble` |
-| Ni neoprè ni proves competitives | `banyValid` |
-| Mínim 2 esmorzars per optar al premi | `elegible` |
+| Ni neoprè ni curses | `banyValid` |
+| 2 esmorzars cada mes obren els punts del mes | `mesCompta` |
+| Bonificacions configurables | `puntsModificadors` |
 | Classificacions per dies i per metres | `ordenar` |
 
 ### Les tres classificacions
 
-Els mateixos banys, mirats des de tres angles. Es canvien amb els filtres de
-sobre de la taula.
-
 | | Què mesura | Què hi compta |
 |---|---|---|
-| **Absoluta** | Punts, amb totes les regles del reglament | Només sense neoprè i sense proves competitives |
-| **Dies nedats** | Dies diferents amb bany registrat | Tot: neoprè i proves incloses |
-| **Metres** | Metres sumats | Tot: neoprè i proves incloses |
+| **Absoluta** | Punts, amb totes les regles | Només sense neoprè ni curses, i un bany de fora al mes |
+| **Dies nedats** | Dies diferents amb bany | Tot: neoprè, curses i tots els banys de fora |
+| **Metres** | Metres sumats | Tot |
 
-Només l'absoluta és la copa. Les altres dues són per mirar-se, i fan que qui
-neda molt amb neoprè tingui també un lloc on sortir.
+### Decisions que el reglament deixa obertes
 
-### L'esmorzar
-
-El reporta el mateix nedador, marcant la casella quan registra el bany. Compta
-el dia, no el bany: dos banys el mateix matí són un sol esmorzar. I compta
-encara que el bany no puntuï, perquè a esmorzar hi va anar igualment. Els
-coordinadors només veuen el recompte.
-
-### El formulari
-
-La distància ve informada amb **1500**, que és la mesura d'un pont i el que
-neda gairebé tothom, i el vestit ve **sense neoprè**, que és el cas normal en
-aquesta copa. Així el formulari ja arriba ple amb el bany més habitual i
-només cal tocar-lo quan el bany s'hi aparta. Si ho voleu a l'inrevés, es
-canvia l'atribut `selected` d'una de les dues `<option>` a `index.html`.
-
-La mena de bany és un desplegable de tres opcions, no una casella, perquè el
-reglament té dues meitats i una casella només en deia una:
-
-| Opció | Puntua a l'absoluta |
-|---|---|
-| Pel meu compte | sí |
-| Travessia popular o benèfica (mini de Sant Esteve) | sí |
-| Cursa competitiva | no |
-
-Tres punts que el reglament deixa oberts i que aquí s'han hagut de decidir:
-
-- **Què és "1500 m aprox"**. Per defecte, entre 1400 i 1600 m compta com un
-  pont. La banda es canvia des de la pestanya de coordinació, sense tocar codi.
-- **Dos banys el mateix dia**. Se sumen entre ells, però ocupen una sola de
-  les quatre places del mes.
-- **9,5 ºC**. Compta com "per sota de 10", o sigui 15 punts, mirant el valor
-  real abans d'arrodonir.
-
-Si en decidiu una altra cosa, es canvia a `scoring.js` i s'executa
-`node test-scoring.js` per comprovar que no s'ha trencat res.
-
----
-
-## Configuració, sense tocar codi
-
-Des de la pestanya *Coordinació* es canvien, i queden desats a la taula
-`config`:
-
-- **Les dates de la temporada.** Al novembre següent només cal moure-les.
-  Les dades velles es queden a la base de dades i deixen de comptar soles,
-  perquè el motor descarta el que cau fora del període.
-- **La banda del pont**, que decideix el coeficient de distància.
-- **El mode de proves.** Mentre està actiu, l'app avisa amb una franja que les
-  dades no valen, deixa registrar banys fora de temporada, i dona als
-  coordinadors un botó per esborrar tots els banys d'una tacada. Poseu-lo a
-  false l'1 de novembre, quan comenci de debò.
-
-El `TEMPORADA` de `index.html` només s'usa mentre l'app encara no ha llegit la
-configuració, i com a valor de partida del mode de demostració.
+- **"1500 m aprox"**: de 1400 a 1600 m compta com un pont. Es canvia des de
+  Coordinació.
+- **Dos banys el mateix dia**: se sumen, però ocupen una sola de les quatre
+  places del mes, i són un sol esmorzar.
+- **Un dia amb un bany de Badalona i un de fora**: el dia sencer compta com
+  de fora, i per tant entra al límit d'un per mes.
+- **Bonificacions i el límit de 4 dies**: un dia amb bonificació compta com
+  un dia normal i pot desbancar-ne un altre.
+- **9,5 ºC**: compta com "per sota de 10". Es mira el valor real abans
+  d'arrodonir.

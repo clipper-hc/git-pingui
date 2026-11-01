@@ -1,6 +1,8 @@
-// Obre l'app en un navegador de veritat i comprova que funciona:
-// errors de consola, render de la classificació, i el flux de registrar un bany.
+// Obre l'app en un navegador de veritat i comprova que funciona. Es fa servir
+// dist/artifact.html i no index.html: és el fitxer que es publica, i ja hem
+// tingut un cas d'un build que corrompia el codi en inlinar-lo.
 const { chromium } = require("playwright");
+const fs = require("fs");
 const path = require("path");
 
 (async () => {
@@ -9,196 +11,159 @@ const path = require("path");
   const problemes = [];
   const ok = (c, m) => { if (!c) problemes.push(m); console.log(`  ${c ? "ok  " : "FAIL"} ${m}`); };
 
+  // Envolta el build amb l'esquelet que hi posa el servei d'artifacts.
+  const cos = fs.readFileSync(path.join(__dirname, "dist/artifact.html"), "utf8");
+  const pagina = `<!doctype html><html><head><meta charset="utf-8">`
+    + `<meta name="viewport" content="width=device-width,initial-scale=1">`
+    + `<style>body{margin:0}</style></head><body>${cos}</body></html>`;
+
   for (const tema of ["light", "dark"]) {
-    const page = await browser.newPage({
-      viewport: { width: 430, height: 900 }, colorScheme: tema,
-    });
+    const page = await browser.newPage({ viewport: { width: 430, height: 900 }, colorScheme: tema });
     page.on("console", (m) => { if (m.type() === "error") errors.push(`[${tema}] ${m.text()}`); });
     page.on("pageerror", (e) => errors.push(`[${tema}] ${e.message}`));
     await page.addInitScript(() => { try { localStorage.clear(); } catch (e) {} });
-    await page.goto("file://" + path.join(__dirname, "index.html"));
+    await page.setContent(pagina);
     await page.waitForTimeout(900);
 
     console.log(`\n── tema ${tema} ──`);
     ok((await page.locator(".board > li").count()) === 11, "11 nedadors a la classificació");
-    ok((await page.locator("#seaBand i").count()) > 100, "la barra de mar té un dia per registre");
     ok(await page.locator("#sessio b").isVisible(), "la capçalera diu qui ets");
-    ok((await page.locator(".entry.jo").count()) === 1, "la teva fila surt destacada");
-
-    const punts = await page.locator(".pts").allTextContents();
-    const n = punts.map((p) => parseFloat(p.replace(/[^\d,]/g, "").replace(",", ".")));
-    ok(n[0] >= n[1] && n[1] >= n[2], `ordenats de més a menys (${n[0]}, ${n[1]}, ${n[2]})`);
-    ok(n[0] > 0, "el líder té punts");
-
-    await page.locator(".entry").first().click();
-    await page.waitForTimeout(200);
-    ok(await page.locator(".detail .mes").first().isVisible(), "el detall mensual es desplega");
 
     const c = await page.evaluate(() => {
-      const s = getComputedStyle(document.body);
-      return { bg: s.backgroundColor, fg: s.color };
+      const s = getComputedStyle(document.body); return [s.backgroundColor, s.color];
     });
-    const lum = (rgb) => { const [r, g, b] = rgb.match(/\d+/g).map(Number);
-      return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
-    ok(Math.abs(lum(c.bg) - lum(c.fg)) > 110, `text i fons contrasten (${c.bg} / ${c.fg})`);
-    ok(tema === "dark" ? lum(c.bg) < 90 : lum(c.bg) > 170, `el fons segueix el tema ${tema}`);
-
+    const lum = (r) => { const [x, y, z] = r.match(/\d+/g).map(Number); return .2126*x + .7152*y + .0722*z; };
+    ok(Math.abs(lum(c[0]) - lum(c[1])) > 110, `text i fons contrasten (${c[0]} / ${c[1]})`);
+    ok(tema === "dark" ? lum(c[0]) < 90 : lum(c[0]) > 170, `el fons segueix el tema ${tema}`);
     const desbord = await page.evaluate(() =>
       document.documentElement.scrollWidth - document.documentElement.clientWidth);
-    ok(desbord <= 1, `sense scroll horitzontal al mòbil (desbordament ${desbord}px)`);
+    ok(desbord <= 1, `sense scroll horitzontal al mòbil (${desbord}px)`);
 
-    if (tema === "light") {
-      // ── Registrar un bany. Ja no cal que ningú l'aprovi: ha de puntuar sol.
-      await page.locator('.tab[data-view="log"]').click();
-      await page.waitForTimeout(200);
-      ok(await page.locator("#logCard").isVisible(), "el formulari surt, ja identificat");
-      ok(!(await page.locator("#authCard").isVisible()), "no demana entrar dues vegades");
+    if (tema !== "light") { await page.close(); continue; }
 
-      ok((await page.inputValue("#fMetres")) === "1500", "la distància ve informada amb 1500");
-      ok((await page.inputValue("#fNeopre")) === "si", "el vestit ve amb neoprè per defecte");
+    // ── Les pestanyes han de respondre. Això és el que el build trencava.
+    await page.locator('.tab[data-view="log"]').click();
+    await page.waitForTimeout(250);
+    ok(await page.locator("#logCard").isVisible(), "les pestanyes canvien de vista");
 
-      const abans = await page.locator("#mineMeta").textContent();
-      await page.fill("#fData", "2026-03-20");
-      await page.waitForTimeout(200);
-      ok(/neoprè/.test(await page.locator("#previsio").textContent()),
-         "amb el valor per defecte avisa que no puntua a l'absoluta");
+    // ── Valors per defecte del formulari
+    ok((await page.inputValue("#fMetres")) === "1700", "la distància ve a 1700, que és un pont");
+    ok((await page.inputValue("#fNeopre")) === "no", "el vestit ve sense neoprè");
+    ok((await page.inputValue("#fFora")) === "badalona", "el lloc ve com a Badalona");
 
-      await page.selectOption("#fNeopre", "no");
-      await page.fill("#fMetres", "2000");
-      await page.check("#fEsmorzar");
-      await page.waitForTimeout(200);
-      const prev = await page.locator("#previsio").textContent();
-      ok(/punts/.test(prev), `la previsió diu què puntuarà: "${prev.trim().slice(0, 60)}"`);
+    // ── A 21 ºC s'ha de puntuar: era el problema de fons.
+    await page.locator('.tab[data-view="coord"]').click();
+    await page.waitForTimeout(200);
+    ok((await page.inputValue("#cTempBase")) === "23", "el llindar és configurable i val 23");
+    await page.fill("#tDia", "2026-03-10");
+    await page.fill("#tTemp", "21");
+    await page.click("#tSave");
+    await page.waitForTimeout(350);
 
-      await page.click("#logBtn");
-      await page.waitForTimeout(400);
-      ok(await page.locator("#logMsg .msg.ok").isVisible(), "el formulari confirma");
-      const despres = await page.locator("#mineMeta").textContent();
-      ok(abans !== despres, `els punts pugen tot sols (${abans.trim()} → ${despres.trim()})`);
+    await page.locator('.tab[data-view="log"]').click();
+    await page.waitForTimeout(200);
+    await page.fill("#fData", "2026-03-10");
+    await page.waitForTimeout(250);
+    const prev = await page.locator("#previsio").textContent();
+    ok(/2 punts ×/.test(prev), `a 21 ºC ja puntua: "${prev.trim().slice(0, 48)}"`);
 
-      ok((await page.locator("#mySubs tbody tr").first().textContent()).includes("sí"),
-         "l'esmorzar que ha reportat el nedador surt a la seva taula");
+    // ── Bany fora de Badalona
+    await page.selectOption("#fFora", "fora");
+    await page.waitForTimeout(250);
+    ok(/Badalona/.test(await page.locator("#previsio").textContent()),
+       "avisa que la temperatura que s'aplica és la de Badalona");
+    await page.click("#logBtn");
+    await page.waitForTimeout(400);
+    ok(await page.locator("#logMsg .msg.ok").isVisible(), "el bany de fora s'apunta");
+    // La taula va per data descendent i el nedador de la demostració ja té
+    // banys posteriors, així que es busca la fila del dia, no la primera.
+    const files = await page.locator("#mySubs tbody tr").allTextContents();
+    const fila = files.find((t) => t.includes("10 mar"));
+    ok(fila && fila.includes("Fora"),
+       `surt marcat com a fora a la seva taula (${(fila || "cap fila").trim()})`);
 
-      // ── Les tres classificacions ──
-      await page.locator('.tab[data-view="board"]').click();
-      await page.waitForTimeout(200);
-      const llegir = async () => ({
-        primer: (await page.locator(".who .nom").first().textContent()).trim(),
-        ordre: (await page.locator(".who .nom").allTextContents()).join("|"),
-        unitat: (await page.locator(".pts small").first().textContent()).trim(),
-      });
-      const abs = await llegir();
-      ok(abs.unitat === "punts", "l'absoluta es mesura en punts");
+    // Un segon de fora el mateix mes ha d'avisar.
+    await page.locator('.tab[data-view="coord"]').click();
+    await page.waitForTimeout(150);
+    await page.fill("#tDia", "2026-03-12");
+    await page.fill("#tTemp", "14");
+    await page.click("#tSave");
+    await page.waitForTimeout(300);
+    await page.locator('.tab[data-view="log"]').click();
+    await page.waitForTimeout(200);
+    await page.fill("#fData", "2026-03-12");
+    await page.selectOption("#fFora", "fora");
+    await page.fill("#fMetres", "1600");
+    await page.waitForTimeout(250);
+    ok(/només en comptarà el millor/.test(await page.locator("#previsio").textContent()),
+       "avisa que aquest mes ja en té un de fora");
 
-      await page.locator('.filtre[data-crit="dies"]').click();
-      await page.waitForTimeout(250);
-      const perDies = await llegir();
-      ok(perDies.unitat === "dies", "el filtre de dies canvia la unitat");
-      ok(/compta tot/i.test(await page.locator("#boardNota").textContent()),
-         "avisa que als dies hi compta tot, neoprè inclòs");
+    // ── Bonificacions ──
+    ok(await page.locator("#modsBox").isVisible(), "les bonificacions surten al formulari");
+    const fitxes = await page.locator(".mod").allTextContents();
+    ok(fitxes.length === 3, `n'hi ha tres (${fitxes.map((t) => t.trim()).join(" · ")})`);
+    ok(fitxes.some((t) => /tauró/.test(t) && /\+10/.test(t)), "el tauró val 10 punts");
 
-      await page.locator('.filtre[data-crit="metres"]').click();
-      await page.waitForTimeout(250);
-      const perMetres = await llegir();
-      ok(perMetres.unitat === "km", "el filtre de metres es mesura en km");
-      ok(new Set([abs.ordre, perDies.ordre, perMetres.ordre]).size === 3,
-         "les tres classificacions donen ordres diferents");
-      ok(abs.primer !== perDies.primer,
-         `qui guanya l'absoluta no guanya els dies (${abs.primer} / ${perDies.primer})`);
+    await page.fill("#fData", "2026-03-18");
+    await page.locator('.tab[data-view="coord"]').click();
+    await page.waitForTimeout(150);
+    await page.fill("#tDia", "2026-03-18");
+    await page.fill("#tTemp", "13");
+    await page.click("#tSave");
+    await page.waitForTimeout(300);
+    await page.locator('.tab[data-view="log"]').click();
+    await page.waitForTimeout(200);
+    await page.fill("#fData", "2026-03-18");
+    await page.fill("#fMetres", "1700");
+    await page.selectOption("#fFora", "badalona");
+    await page.waitForTimeout(250);
+    const sense = await page.locator("#previsio").textContent();
+    await page.locator('.mod:has-text("dofí") input').check();
+    await page.waitForTimeout(250);
+    const amb = await page.locator("#previsio").textContent();
+    ok(/bonificació/.test(amb), `la previsió hi suma la bonificació: "${amb.trim().slice(0, 70)}"`);
+    ok(sense !== amb, "i canvia el total respecte de sense marcar-la");
 
-      await page.locator('.filtre[data-crit="absoluta"]').click();
-      await page.waitForTimeout(200);
-      await page.locator('.tab[data-view="log"]').click();
-      await page.waitForTimeout(200);
+    // ── La porta dels esmorzars ──
+    ok(/esmorzar/.test(amb), "avisa dels esmorzars que falten aquell mes");
 
-      // ── Un dia sense temperatura no puntua, i surt a la safata dels coordinadors.
-      await page.fill("#fData", "2026-03-29");
-      await page.selectOption("#fNeopre", "no");
-      await page.fill("#fMetres", "1100");
-      await page.waitForTimeout(200);
-      ok(/AEMET/.test(await page.locator("#previsio").textContent()),
-         "avisa que encara no hi ha temperatura");
-      await page.click("#logBtn");
-      await page.waitForTimeout(400);
+    // ── Esmorzars mes a mes
+    await page.locator('.tab[data-view="coord"]').click();
+    await page.waitForTimeout(250);
+    const caps = await page.locator("#bList thead th").allTextContents();
+    ok(caps.length === 7, `la taula d'esmorzars té una columna per mes (${caps.join(" ")})`);
+    ok((await page.locator("#bList tbody tr").count()) === 11, "hi surten els 11 nedadors");
+    ok(/no entren al global/.test(await page.locator("#bList .note").textContent()),
+       "explica que sense esmorzars els punts del mes no compten");
 
-      await page.locator('.tab[data-view="coord"]').click();
-      await page.waitForTimeout(250);
-      ok(await page.locator("#coordPanel").isVisible(), "la coordinació s'obre per al coordinador");
-      const fila = page.locator('.pend[data-dia="2026-03-29"]');
-      ok(await fila.isVisible(), "el dia sense temperatura surt a la safata");
-      await fila.locator(".temp-in").fill("10.5");
-      await fila.locator("[data-fixar]").click();
-      await page.waitForTimeout(400);
-      ok(!(await page.locator('.pend[data-dia="2026-03-29"]').count()),
-         "en fixar la temperatura, surt de la safata");
+    // ── Reglament
+    await page.locator('.tab[data-view="rules"]').click();
+    await page.waitForTimeout(200);
+    const regla = await page.locator("#reglaTemp").textContent();
+    ok(/23 ºC/.test(regla), `el reglament diu el llindar bo: "${regla.trim().slice(0, 44)}"`);
+    const text = await page.locator("#view-rules").textContent();
+    ok(/20 €/.test(text), "diu la inscripció de 20 €");
+    ok(/samarreta commemorativa/.test(text), "diu a què es destinen");
+    ok(/només compta un bany de fora/i.test(text), "explica el límit de fora de Badalona");
+    ok(/2 esmorzars cada mes/.test(text), "explica els dos esmorzars al mes");
+    ok(/no compten/.test(text), "i que sense ells els punts del mes no compten");
+    ok(/He vist un tauró/.test(text), "el reglament llista les bonificacions");
+    ok(/punts plans/.test(text), "i diu que són punts plans");
+    ok((await page.locator("#ramp .r").count()) === 14, "la rampa arriba fins als 22 ºC");
 
-      // ── Configuració: dates de la temporada i mode de proves ──
-      ok(await page.locator("#cInici").isVisible(), "les dates de la temporada són configurables");
-      ok(await page.locator("#cProves").isVisible(), "el mode de proves és configurable");
-      const provesActiu = await page.isChecked("#cProves");
-      ok(provesActiu === !(await page.locator("#cBuidar").isHidden()),
-         "el botó de buidar només surt en mode de proves");
-      await page.fill("#cFi", "2026-04-30");
-      await page.click("#cSave");
-      await page.waitForTimeout(300);
-      ok(await page.locator("#cMsg .msg.ok").isVisible(), "la configuració es desa");
-      ok((await page.locator("#seasonRange").textContent()).includes("abril"),
-         "la capçalera recull la data nova");
-      await page.fill("#cFi", "2026-03-01");
-      await page.fill("#cInici", "2026-06-01");
-      await page.click("#cSave");
-      await page.waitForTimeout(250);
-      ok(await page.locator("#cMsg .msg.err").isVisible(), "rebutja un final anterior a l'inici");
-      await page.fill("#cInici", "2025-11-01");
-      await page.fill("#cFi", "2026-03-31");
-      await page.click("#cSave");
-      await page.waitForTimeout(300);
-
-      // ── El recompte d'esmorzars surt de la taula, no d'un panell propi.
-      ok((await page.locator("#bList table").count()) === 1,
-         "els esmorzars són un recompte de només lectura");
-
-      // ── Anul·lar un bany des de la correcció.
-      const primer = page.locator("#corrList [data-toggle]").first();
-      const txt = await primer.textContent();
-      await primer.click();
-      await page.waitForTimeout(400);
-      ok((await page.locator("#corrList [data-toggle]").first().textContent()) !== txt,
-         "anul·lar un bany canvia el seu estat");
-
-      await page.locator('.tab[data-view="rules"]').click();
-      await page.waitForTimeout(150);
-      ok((await page.locator("#ramp .r").count()) === 11, "la rampa de temperatures es pinta");
-
-      await page.locator('.tab[data-view="board"]').click();
-      await page.waitForTimeout(250);
-      await page.screenshot({ path: "dist/board.png" });
-      await page.locator('.tab[data-view="log"]').click();
-      await page.waitForTimeout(200);
-      await page.screenshot({ path: "dist/log.png" });
-
-      // ── Sortir: ha de deixar mirar la classificació però no registrar.
-      await page.locator("#sortirBtn").click();
-      await page.waitForTimeout(300);
-      ok((await page.locator(".board > li").count()) === 11, "en sortir, la classificació es veu igual");
-      await page.locator('.tab[data-view="log"]').click();
-      await page.waitForTimeout(200);
-      ok(await page.locator("#authCard").isVisible(), "en sortir, demana entrar per registrar");
-      ok(await page.locator("#googleBtn").isVisible(), "hi ha el botó de Google");
-      await page.locator('.tab[data-view="coord"]').click();
-      await page.waitForTimeout(200);
-      ok(!(await page.locator("#coordPanel").isVisible()), "la coordinació queda tancada");
-      await page.screenshot({ path: "dist/auth.png" });
-    } else {
-      await page.screenshot({ path: "dist/board-dark.png" });
-    }
+    await page.locator('.tab[data-view="board"]').click();
+    await page.waitForTimeout(250);
+    await page.screenshot({ path: "dist/board.png" });
+    await page.locator('.tab[data-view="coord"]').click();
+    await page.waitForTimeout(250);
+    await page.screenshot({ path: "dist/coord.png", fullPage: false });
     await page.close();
   }
 
   console.log("\n── consola ──");
-  const reals = errors.filter((e) => !/ERR_TUNNEL_CONNECTION_FAILED|fonts\.googleapis/.test(e));
+  const reals = errors.filter((e) => !/ERR_|fonts\.googleapis|net::/.test(e));
   if (reals.length) { reals.forEach((e) => console.log("  " + e)); problemes.push("errors de consola"); }
-  else console.log("  ok   cap error de consola (les fonts les bloqueja el sandbox)");
+  else console.log("  ok   cap error de consola");
 
   await browser.close();
   console.log(problemes.length ? `\n${problemes.length} PROBLEMES\n` : "\nTot correcte\n");

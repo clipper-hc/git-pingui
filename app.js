@@ -21,7 +21,9 @@ const MESOS = ["gener","febrer","març","abril","maig","juny","juliol","agost",
 const S = {
   temporada: { ...TEMPORADA },
   nedadors: [], banys: [], dies: {},
-  config: { pontMin: 1400, pontMax: 1600, modeProves: true },
+  config: { pontMin: 1400, pontMax: 1600, modeProves: true,
+            tempBase: 23, puntsExtrem: 15, minEsmorzarsPerMes: 2,
+            maxForaPerMes: 1, inscripcio: 20, modificadors: [] },
   criteri: "absoluta",   // absoluta | dies | metres
   usuari: null,      // sessió de Supabase
   jo: null,          // la meva fitxa de nedador
@@ -35,7 +37,8 @@ const S = {
    semàntica de l'app; el taronja queda reservat per a les accions. */
 function colorAigua(t) {
   if (t === null || t === undefined || Number.isNaN(t)) return "var(--line)";
-  const u = Math.min(1, Math.max(0, (20 - t) / 12));
+  const base = (S.config && S.config.tempBase) || 23;
+  const u = Math.min(1, Math.max(0, (base - t) / (base - 8)));
   return `hsl(${(188 + u * 70).toFixed(0)} ${(30 + u * 32).toFixed(0)}% ${(60 - u * 15).toFixed(0)}%)`;
 }
 const fmtPunts = (n) => (Math.round(n * 100) / 100).toLocaleString("ca-ES");
@@ -52,11 +55,12 @@ let sb = null;
 
 async function carregar() {
   if (!LIVE) return demoCarregar();
-  const [ned, ban, dia, cfg] = await Promise.all([
+  const [ned, ban, dia, cfg, mods] = await Promise.all([
     sb.from("nedadors").select("*").order("nom"),
     sb.from("banys").select("*").order("data"),
     sb.from("dies").select("*"),
     sb.from("config").select("*").eq("id", 1).maybeSingle(),
+    sb.from("modificadors").select("*").eq("actiu", true).order("ordre"),
   ]);
   const err = [ned, ban, dia].find((r) => r.error);
   if (err) throw new Error(err.error.message);
@@ -65,15 +69,29 @@ async function carregar() {
   S.banys = ban.data.map((b) => ({
     id: b.id, nedadorId: b.nedador_id, data: b.data, metres: b.metres,
     neopre: b.neopre, competitiu: b.competitiu, esmorzar: b.esmorzar,
-    nota: b.nota, estat: b.estat,
+    fora: b.fora, nota: b.nota, estat: b.estat,
+    modificadors: Array.isArray(b.modificadors) ? b.modificadors : [],
   }));
   S.dies = Object.fromEntries(dia.data.map((d) =>
     [d.data, { tempC: d.temp_c === null ? null : Number(d.temp_c), doble: d.doble, font: d.font }]));
   if (cfg && cfg.data) {
-    S.config = { pontMin: cfg.data.pont_min, pontMax: cfg.data.pont_max,
-                 modeProves: cfg.data.mode_proves };
+    S.config = {
+      pontMin: cfg.data.pont_min, pontMax: cfg.data.pont_max,
+      modeProves: cfg.data.mode_proves,
+      tempBase: cfg.data.temp_base ?? 23,
+      puntsExtrem: cfg.data.punts_extrem ?? 15,
+      minEsmorzarsPerMes: cfg.data.esmorzars_mes ?? 2,
+      maxForaPerMes: cfg.data.max_fora_mes ?? 1,
+      inscripcio: cfg.data.inscripcio_euros ?? 20,
+      modificadors: [],
+    };
     S.temporada = { inici: cfg.data.inici, fi: cfg.data.fi };
   }
+  // La taula de modificadors pot no existir encara: si falla, l'app segueix
+  // funcionant sense bonificacions en comptes de no carregar.
+  S.config.modificadors = (mods && !mods.error && mods.data)
+    ? mods.data.map((m) => ({ id: m.id, nom: m.nom, punts: Number(m.punts) }))
+    : [];
   reconeixerme();
 }
 
@@ -100,7 +118,8 @@ const api = {
     const { error } = await sb.from("banys").insert({
       nedador_id: b.nedadorId, data: b.data, metres: b.metres,
       neopre: b.neopre, competitiu: b.competitiu, esmorzar: b.esmorzar,
-      nota: b.nota, estat: "aprovat",
+      fora: b.fora, nota: b.nota, estat: "aprovat",
+      modificadors: b.modificadors || [],
     });
     if (error) throw new Error(error.code === "23505"
       ? "Ja tens apuntat aquest bany." : error.message);
@@ -130,7 +149,10 @@ const api = {
     if (!LIVE) return demoDesar();
     const { error } = await sb.from("config").upsert({
       id: 1, pont_min: c.pontMin, pont_max: c.pontMax,
-      mode_proves: c.modeProves, inici: temporada.inici, fi: temporada.fi });
+      mode_proves: c.modeProves, inici: temporada.inici, fi: temporada.fi,
+      temp_base: c.tempBase, punts_extrem: c.puntsExtrem,
+      esmorzars_mes: c.minEsmorzarsPerMes, max_fora_mes: c.maxForaPerMes,
+      inscripcio_euros: c.inscripcio });
     if (error) throw new Error(error.message);
   },
   /* Només en mode de proves: esborra tots els banys per deixar-ho net abans
@@ -146,7 +168,7 @@ const api = {
 };
 
 /* ── Mode demostració ──────────────────────────────────────────────────── */
-const DEMO_KEY = "copa-pingui-demo-v3";
+const DEMO_KEY = "copa-pingui-demo-v5";
 function demoDesar() {
   try { localStorage.setItem(DEMO_KEY, JSON.stringify({
     nedadors: S.nedadors, banys: S.banys, dies: S.dies,
@@ -154,6 +176,14 @@ function demoDesar() {
 }
 function demoCarregar() {
   S.temporada = { inici: "2025-11-01", fi: "2026-03-31" };
+  S.config = { ...S.config, tempBase: 23, puntsExtrem: 15,
+               minEsmorzarsPerMes: 2, maxForaPerMes: 1, inscripcio: 20,
+               pontMin: 1600, pontMax: 1800,
+               modificadors: [
+                 { id: "m1", nom: "He vist un tauró", punts: 10 },
+                 { id: "m2", nom: "He vist un dofí", punts: 10 },
+                 { id: "m3", nom: "M'ha picat una medusa", punts: 1 },
+               ] };
   S.usuari = { id: "demo-user", email: "demo@exemple.com" };
   let joId = null;
   try {
@@ -202,15 +232,21 @@ function demoSembrar() {
         id: `b${i}-${iso}`, nedadorId: n.id, data: iso, metres,
         neopre: rnd() < (neoprener ? 0.92 : 0.05), competitiu: rnd() < 0.03,
         nota: "", estat: rnd() < 0.02 ? "anullat" : "aprovat",
-        esmorzar: rnd() < 0.34,
+        // Prou esmorzars perquè uns quants cobreixin els dos de cada mes
+        // i d'altres no: així es veu la columna del premi funcionant.
+        esmorzar: rnd() < (i % 3 === 0 ? 0.2 : 0.55),
+        fora: rnd() < 0.09,
+        modificadors: rnd() < 0.06 ? [rnd() < 0.5 ? "m2" : "m3"] : [],
       });
     });
   });
   S.banys.push(
     { id: "r1", nedadorId: "n4", data: "2026-03-29", metres: 1500, neopre: false,
-      competitiu: false, esmorzar: true, nota: "Fins al pont i tornar", estat: "aprovat" },
+      competitiu: false, esmorzar: true, fora: false, modificadors: ["m1"],
+      nota: "Fins al pont i tornar", estat: "aprovat" },
     { id: "r2", nedadorId: "n7", data: "2026-03-30", metres: 2400, neopre: false,
-      competitiu: false, esmorzar: false, nota: "", estat: "aprovat" });
+      competitiu: false, esmorzar: false, fora: true, modificadors: [],
+      nota: "Travessia a Sitges", estat: "aprovat" });
 
 }
 
@@ -296,7 +332,7 @@ function pintarClassificacio() {
             ? `${r.diesNedats} dies · ${(r.metresNedats / 1000).toLocaleString("ca-ES",{maximumFractionDigits:1})} km`
             : `${fmtPunts(r.total)} punts a l'absoluta`}${
             r.tempMinima !== null ? ` · mínima ${fmtTemp(r.tempMinima)}` : ""}${
-            r.elegible ? "" : ` · ${r.esmorzars}/2 esmorzars`}</span>
+            r.puntsPerduts > 0 ? ` · ${fmtPunts(r.puntsPerduts)} en espera` : ""}</span>
         </span>
         <span class="pts num">${info.valor(r)}<small>${info.unitat}</small></span>
         <span class="strip">${strip}</span>
@@ -316,12 +352,16 @@ function detall(r) {
       </p></div>`;
   }
   const mesos = r.mesos.map((m) => `
-    <div class="mes">
+    <div class="mes${m.mesCompta ? "" : " bloquejat"}">
       <div class="mes-h">
         <span class="nom">${fmtMes(m.mes)}</span>
         <span class="tot num">${fmtPunts(m.subtotal)} punts${
+          m.mesCompta ? "" : " en espera"}${
           m.descartatsPerLimit ? ` <span style="color:var(--muted);font-weight:400">· ${m.descartatsPerLimit} fora</span>` : ""}</span>
       </div>
+      ${m.mesCompta ? "" : `<div class="porta">Aquest mes encara no compta al global:
+        hi falt${m.esmorzarsFalten > 1 ? "en" : "a"} ${m.esmorzarsFalten} esmorzar${
+        m.esmorzarsFalten > 1 ? "s" : ""} (${m.esmorzarsFets} de ${S.config.minEsmorzarsPerMes}).</div>`}
       <div class="dies">${m.dies.map((d) => `
         <div class="dia${d.compta ? "" : " out"}">
           <span class="temp-chip" style="background:${colorAigua(d.tempC)}">${
@@ -330,6 +370,9 @@ function detall(r) {
             <span>${fmtDia(d.data)}</span>
             <span style="color:var(--muted)">${d.banys.reduce((s,b)=>s+b.metres,0).toLocaleString("ca-ES")} m</span>
             ${d.doble ? '<span class="flag">Doble</span>' : ""}
+            ${d.fora ? '<span class="flag">Fora</span>' : ""}
+            ${(d.extres || []).map((m) =>
+              `<span class="flag">${esc(m.nom)} +${fmtPunts(m.punts)}</span>`).join("")}
             ${d.banys.length > 1 ? `<span style="color:var(--muted)">${d.banys.length} banys</span>` : ""}
           </span>
           <span class="d-pts">${fmtPunts(d.punts)}</span>
@@ -337,14 +380,19 @@ function detall(r) {
     </div>`).join("");
 
   const avisos = [];
-  if (!r.elegible) avisos.push(`<b>Li falten esmorzars.</b> N'ha fet ${r.esmorzars} de 2.`);
+  if (r.puntsPerduts > 0) {
+    avisos.push(`<b>${fmtPunts(r.puntsPerduts)} punts en espera</b> a ${
+      r.mesosBloquejats.map(fmtMes).join(", ")}: calen ${S.config.minEsmorzarsPerMes} esmorzars cada mes.`);
+  }
   if (r.descartats.length) {
     const per = {}; r.descartats.forEach((d) => per[d.motiu] = (per[d.motiu] || 0) + 1);
     avisos.push(`<b>Registres que no sumen:</b> ${
       Object.entries(per).map(([m, n]) => `${n} per ${m}`).join(", ")}.`);
   }
-  const fora = r.mesos.reduce((s, m) => s + m.descartatsPerLimit, 0);
-  if (fora) avisos.push(`<b>${fora} dia${fora > 1 ? "s" : ""} fora del límit</b> de quatre per mes. Surten ratllats.`);
+  const sobren = r.mesos.reduce((s, m) => s + m.descartatsPerLimit, 0);
+  if (sobren) avisos.push(`<b>${sobren} dia${sobren > 1 ? "s" : ""} fora del límit</b> de quatre per mes. Surten ratllats.`);
+  const foraFora = r.mesos.reduce((s, m) => s + (m.descartatsPerFora || 0), 0);
+  if (foraFora) avisos.push(`<b>${foraFora} bany${foraFora > 1 ? "s" : ""} de fora de Badalona</b> per sobre d'un al mes. Només compta el millor de cada mes.`);
 
   return `<div class="detail">${mesos}${avisos.length ? `<p class="why">${avisos.join(" ")}</p>` : ""}</div>`;
 }
@@ -358,11 +406,24 @@ function pintarRegistre() {
   $("#mineCard").classList.toggle("hidden", !(dins && S.jo));
   if (!(dins && S.jo)) return;
 
+  // Bonificacions: surten soles a partir de la taula `modificadors`.
+  const mods = S.config.modificadors || [];
+  $("#modsBox").style.display = mods.length ? "" : "none";
+  const marcats = new Set(modsMarcats());
+  $("#mods").innerHTML = mods.map((m) => `
+    <label class="mod">
+      <input type="checkbox" value="${esc(m.id)}"${marcats.has(String(m.id)) ? " checked" : ""}>
+      <span>${esc(m.nom)}</span>
+      <b>+${fmtPunts(m.punts)}</b>
+    </label>`).join("");
+
   $("#fData").max = avui();
   if (!$("#fData").value) $("#fData").value = avui();
   pintarPrevisio();
   pintarElsMeus();
 }
+
+const modsMarcats = () => $$("#mods input:checked").map((i) => i.value);
 
 /* Ensenya què puntuarà el bany abans d'apuntar-lo. Fa visible que la
    temperatura ve de fora, i que sense lectura encara no puntua. */
@@ -387,11 +448,35 @@ function pintarPrevisio() {
       + "apuntat i puntuarà tot sol quan arribi la lectura de l'AEMET.";
     return;
   }
-  const pt = puntsTemperatura(d.tempC), coef = coeficientDistancia(metres, S.config);
+  const pt = puntsTemperatura(d.tempC, S.config), coef = coeficientDistancia(metres, S.config);
   const doble = esDiaDoble(data, { [data]: d.doble === true });
   box.className = "msg ok";
-  box.textContent = `${fmtTemp(d.tempC)} → ${pt} punts × ${coef.toLocaleString("ca-ES")}`
-    + `${doble ? " × 2 (dia doble)" : ""} = ${fmtPunts(pt * coef * (doble ? 2 : 1))} punts.`;
+  const base = pt * coef * (doble ? 2 : 1);
+  const extres = puntsModificadors(modsMarcats(), S.config);
+  let txt = `${fmtTemp(d.tempC)} → ${pt} punts × ${coef.toLocaleString("ca-ES")}`
+    + `${doble ? " × 2 (dia doble)" : ""}`
+    + `${extres ? ` + ${fmtPunts(extres)} de bonificació` : ""}`
+    + ` = ${fmtPunts(base + extres)} punts.`;
+  const mesBany = data.slice(0, 7);
+  const esmMes = new Set(S.banys.filter((b) => b.nedadorId === S.jo.id && b.esmorzar &&
+    b.estat === "aprovat" && b.data.slice(0, 7) === mesBany).map((b) => b.data));
+  if ($("#fEsmorzar").checked) esmMes.add(data);
+  const falten = S.config.minEsmorzarsPerMes - esmMes.size;
+  if (falten > 0) {
+    txt += ` Compte: aquest mes et falt${falten > 1 ? "en" : "a"} ${falten} esmorzar`
+      + `${falten > 1 ? "s" : ""}, i fins llavors els punts del mes no compten al global.`;
+  }
+
+  if ($("#fFora").value === "fora") {
+    // Avisa si aquest mes ja en té un de fora: el millor dels dos comptarà.
+    const mes = data.slice(0, 7);
+    const japrop = S.banys.filter((b) => b.nedadorId === S.jo.id && b.fora &&
+      b.estat === "aprovat" && b.data.slice(0, 7) === mes).length;
+    txt += japrop >= S.config.maxForaPerMes
+      ? ` Aquest mes ja tens ${japrop} bany${japrop > 1 ? "s" : ""} de fora: només en comptarà el millor.`
+      : " La temperatura que s'hi aplica és la de Badalona.";
+  }
+  box.textContent = txt;
 }
 
 function pintarElsMeus() {
@@ -416,7 +501,8 @@ function pintarElsMeus() {
         : (d.tempC === null || d.tempC === undefined) ? "sense temperatura" : null;
       return `<tr>
         <td class="n">${fmtDia(b.data)}</td>
-        <td class="n">${b.metres.toLocaleString("ca-ES")}</td>
+        <td class="n">${b.metres.toLocaleString("ca-ES")}${
+          b.fora ? ' <span class="flag">Fora</span>' : ""}</td>
         <td class="n">${fmtTemp(d.tempC)}</td>
         <td class="n" style="color:${b.esmorzar ? "var(--good)" : "var(--muted)"}">${
           b.esmorzar ? "sí" : "—"}</td>
@@ -501,14 +587,26 @@ function pintarCoordinacio() {
   const res = classificacio();
   const ambEsmorzars = [...res].sort((a, b) => b.esmorzars - a.esmorzars ||
     a.nedador.nom.localeCompare(b.nedador.nom, "ca"));
+  const mesos = res.length && res[0].esmorzarsPerMes ? res[0].esmorzarsPerMes : [];
   $("#bList").innerHTML = `<table class="tbl">
-    <thead><tr><th>Nedador</th><th>Esmorzars</th><th>Premi</th></tr></thead>
-    <tbody>${ambEsmorzars.map((r) => `<tr>
+    <thead><tr><th>Nedador</th>${mesos.map((m) =>
+      `<th>${fmtMes(m.mes).slice(0, 3)}</th>`).join("")}<th>Punts</th></tr></thead>
+    <tbody>${[...res].sort((a, b) => a.puntsPerduts - b.puntsPerduts ||
+        a.nedador.nom.localeCompare(b.nedador.nom, "ca")).map((r) => `<tr>
       <td>${esc(r.nedador.nom)}</td>
-      <td class="n">${r.esmorzars}</td>
-      <td>${r.elegible ? '<span class="pill ok">Hi opta</span>'
-        : `<span class="pill warn">Li'n falta${2 - r.esmorzars > 1 ? "n" : ""} ${2 - r.esmorzars}</span>`}</td>
-    </tr>`).join("")}</tbody></table>`;
+      ${(r.esmorzarsPerMes || []).map((m) => `<td class="n" style="color:${
+        !m.comencat ? "var(--muted)" : m.falten === 0 ? "var(--good)"
+          : m.tancat ? "var(--bad)" : "var(--warn)"}">${
+        m.comencat ? m.fets : "·"}</td>`).join("")}
+      <td>${r.puntsPerduts > 0
+        ? `<span class="pill warn">${fmtPunts(r.puntsPerduts)} en espera</span>`
+        : '<span class="pill ok">Al dia</span>'}</td>
+    </tr>`).join("")}</tbody></table>
+    <p class="note" style="margin-top:10px">Calen ${S.config.minEsmorzarsPerMes} esmorzars
+      cada mes, o els punts d'aquell mes no entren al global. En verd els mesos
+      coberts, en taronja el mes en curs quan encara en falten, i en vermell un mes
+      tancat sense arribar-hi. Els punts no es perden per sempre: tornen tots el dia
+      que s'arriba als dos esmorzars.</p>`;
 
   $("#nCount").textContent = `${S.nedadors.length} apuntats de 20 places`;
   $("#nList").innerHTML = S.nedadors.map((n) =>
@@ -518,15 +616,37 @@ function pintarCoordinacio() {
   $("#cPontMax").value = S.config.pontMax;
   $("#cInici").value = S.temporada.inici;
   $("#cFi").value = S.temporada.fi;
+  $("#cTempBase").value = S.config.tempBase;
+  $("#cEsmorzarsMes").value = S.config.minEsmorzarsPerMes;
+  $("#cMaxFora").value = S.config.maxForaPerMes;
+  $("#cInscripcio").value = S.config.inscripcio;
+  $("#notaLlindar").textContent =
+    `Amb el llindar a ${S.config.tempBase} ºC, l'aigua a 21 ºC val `
+    + `${puntsTemperatura(21, S.config)} punts i a 13 ºC en val `
+    + `${puntsTemperatura(13, S.config)}. Per sota de 10 ºC, ${S.config.puntsExtrem} fixos.`;
   $("#cProves").checked = S.config.modeProves === true;
   $("#cBuidar").classList.toggle("hidden", !S.config.modeProves);
 }
 
 function pintarRampa() {
-  const graus = [19,18,17,16,15,14,13,12,11,10,9];
+  const base = S.config.tempBase;
+  const graus = [];
+  for (let t = base - 1; t >= 10; t--) graus.push(t);
+  graus.push(9);
   $("#ramp").innerHTML = graus.map((t) =>
     `<span class="r"><i style="background:${colorAigua(t)}">${t < 10 ? "&lt;10" : t + "º"}</i>
-      <span>${t < 10 ? 15 : 20 - t}</span></span>`).join("");
+      <span>${puntsTemperatura(t < 10 ? 9 : t, S.config)}</span></span>`).join("");
+  const llista = $("#llistaMods");
+  if (llista) {
+    const mods = S.config.modificadors || [];
+    llista.innerHTML = mods.length
+      ? mods.map((m) => `<li><b>${esc(m.nom)}</b> — ${fmtPunts(m.punts)} punt${
+          Math.abs(m.punts) === 1 ? "" : "s"}</li>`).join("")
+      : "<li>Encara no n'hi ha cap de definida.</li>";
+  }
+  const nota = $("#reglaTemp");
+  if (nota) nota.textContent = `Un punt per cada grau per sota de ${base} ºC. `
+    + `Per sota de 10 ºC, ${S.config.puntsExtrem} punts directes.`;
 }
 
 function pintarFranja() {
@@ -540,6 +660,7 @@ function pintarFranja() {
 }
 
 function pintar() {
+  pintarRampa();
   pintarFranja();
   pintarSessio();
   pintarCapcalera();
@@ -634,8 +755,9 @@ function connectar() {
     catch (err) { missatge("#onboardMsg", "No s'ha pogut apuntar: " + err.message, "err"); }
   });
 
-  ["#fData","#fMetres","#fNeopre","#fCompeti"].forEach((s) =>
+  ["#fData","#fMetres","#fNeopre","#fCompeti","#fFora","#fEsmorzar"].forEach((s) =>
     $(s).addEventListener("input", pintarPrevisio));
+  $("#mods").addEventListener("change", pintarPrevisio);
 
   $("#board").parentElement.querySelector(".filtres")
     .addEventListener("click", (e) => {
@@ -651,6 +773,8 @@ function connectar() {
       data: $("#fData").value,
       metres: parseInt($("#fMetres").value, 10),
       neopre: $("#fNeopre").value === "si",
+      fora: $("#fFora").value === "fora",
+      modificadors: modsMarcats(),
       competitiu: $("#fCompeti").value === "cursa",
       esmorzar: $("#fEsmorzar").checked,
       nota: $("#fNota").value.trim(),
@@ -665,8 +789,10 @@ function connectar() {
     $("#logBtn").disabled = true;
     try {
       await api.apuntarBany(bany);
-      $("#fMetres").value = "1500"; $("#fNota").value = "";
+      $("#fMetres").value = "1700"; $("#fNota").value = "";
       $("#fNeopre").value = "no"; $("#fCompeti").value = "lliure";
+      $("#fFora").value = "badalona";
+      $$("#mods input:checked").forEach((i) => { i.checked = false; });
       $("#fEsmorzar").checked = false;
       $("#previsio").classList.add("hidden");
       missatge("#logMsg", "Apuntat.");
@@ -717,13 +843,24 @@ function connectar() {
   $("#cSave").addEventListener("click", async () => {
     const min = parseInt($("#cPontMin").value, 10), max = parseInt($("#cPontMax").value, 10);
     const inici = $("#cInici").value, fi = $("#cFi").value;
+    const tempBase = parseInt($("#cTempBase").value, 10);
+    const esmMes = parseInt($("#cEsmorzarsMes").value, 10);
+    const maxFora = parseInt($("#cMaxFora").value, 10);
+    const inscripcio = parseInt($("#cInscripcio").value, 10);
+    if (!(tempBase >= 10 && tempBase <= 30))
+      return missatge("#cMsg", "El llindar de temperatura ha d'estar entre 10 i 30 ºC.", "err");
+    if (!(esmMes >= 0) || !(maxFora >= 0))
+      return missatge("#cMsg", "Els esmorzars i els banys de fora han de ser zero o més.", "err");
     if (!(min > 0 && max >= min))
       return missatge("#cMsg", "La banda del pont no és vàlida.", "err");
     if (!inici || !fi || fi <= inici)
       return missatge("#cMsg", "El final de la temporada ha de ser posterior a l'inici.", "err");
     try {
-      await api.desarConfig({ pontMin: min, pontMax: max, modeProves: $("#cProves").checked },
-        { inici, fi });
+      await api.desarConfig({
+        pontMin: min, pontMax: max, modeProves: $("#cProves").checked,
+        tempBase, puntsExtrem: S.config.puntsExtrem,
+        minEsmorzarsPerMes: esmMes, maxForaPerMes: maxFora, inscripcio,
+      }, { inici, fi });
       missatge("#cMsg", "Configuració desada.");
       pintar();
     } catch (err) { missatge("#cMsg", "No s'ha pogut desar: " + err.message, "err"); }
